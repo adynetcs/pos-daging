@@ -1,6 +1,6 @@
 # Skema Database POS Daging (Google Sheets)
 
-Versi skema: 1.1.0 Dibuat otomatis oleh `gas/Setup.gs`; jangan ubah header kolom secara manual.
+Versi skema: 1.2.0 Dibuat otomatis oleh `gas/Setup.gs`; jangan ubah header kolom secara manual.
 
 ## Prinsip
 
@@ -40,7 +40,7 @@ Akun yang boleh memakai aplikasi beserta perannya.
 |---|---|---|
 | `id_pengguna` | id | USR-0001 |
 | `nama` | teks | Nama tampilan |
-| `email` | teks | Email login (unik) |
+| `email` | teks | Email (opsional jika username diisi, unik) |
 | `peran` | pilihan | Hak akses Pilihan: pemilik, admin, kasir. |
 | `aktif` | boolean | FALSE = tidak bisa login |
 | `dibuat_pada` | waktu |  |
@@ -48,6 +48,7 @@ Akun yang boleh memakai aplikasi beserta perannya.
 | `pin_salt` | teks | Diisi otomatis |
 | `gagal_login` | angka | Jumlah salah PIN berturut-turut |
 | `terkunci_sampai` | waktu | Kosong = tidak terkunci |
+| `username` | teks | Nama login: huruf kecil, angka, titik atau garis bawah, 3–20 karakter (unik) |
 
 ### Pengaturan
 

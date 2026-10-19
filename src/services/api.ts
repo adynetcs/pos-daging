@@ -13,7 +13,7 @@ export const DATA_MODE: 'demo' | 'api' = import.meta.env.VITE_DATA_MODE === 'api
 export const IS_DEMO = DATA_MODE === 'demo';
 
 export type Peran = 'pemilik' | 'admin' | 'kasir';
-export interface PenggunaSesi { id_pengguna: string; nama: string; email: string; peran: Peran }
+export interface PenggunaSesi { id_pengguna: string; nama: string; username: string; email: string; peran: Peran }
 
 export class ApiError extends Error {
   constructor(message: string, public kode: string, public status: number) { super(message); }
@@ -44,7 +44,7 @@ export const idPermintaan = () =>
 
 export const api = {
   health: () => minta<KesehatanServer>('/api/health'),
-  login: (email: string, pin: string) => minta<PenggunaSesi>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, pin }) }),
+  login: (login: string, pin: string) => minta<PenggunaSesi>('/api/auth/login', { method: 'POST', body: JSON.stringify({ login, pin }) }),
   logout: () => minta<void>('/api/auth/logout', { method: 'POST', body: '{}' }),
   me: () => minta<PenggunaSesi>('/api/auth/me'),
   rpc: <T,>(action: string, payload: unknown = {}) =>

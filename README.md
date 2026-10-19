@@ -93,7 +93,7 @@ Browser tidak pernah mengetahui URL Apps Script maupun kunci rahasia.
 ```
 api/
   health.ts          GET  cek konfigurasi + koneksi
-  auth/login.ts      POST email + PIN → cookie sesi HttpOnly (12 jam)
+  auth/login.ts      POST username (atau email) + PIN → cookie sesi HttpOnly (12 jam)
   auth/logout.ts     POST
   auth/me.ts         GET  pengguna yang sedang login
   rpc.ts             POST satu pintu untuk aksi data (daftar aksi di-whitelist)

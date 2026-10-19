@@ -11,7 +11,7 @@
  */
 
 /** Versi skema. Naikkan jika kolom berubah. */
-var SKEMA_VERSI = '1.1.0';
+var SKEMA_VERSI = '1.2.0';
 
 /**
  * Definisi skema. Setiap kolom: [nama, tipe, keterangan, pilihan?]
@@ -23,14 +23,15 @@ var SKEMA = {
     kolom: [
       ['id_pengguna', 'id', 'USR-0001'],
       ['nama', 'teks', 'Nama tampilan'],
-      ['email', 'teks', 'Email login (unik)'],
+      ['email', 'teks', 'Email (opsional jika username diisi, unik)'],
       ['peran', 'pilihan', 'Hak akses', ['pemilik', 'admin', 'kasir']],
       ['aktif', 'boolean', 'FALSE = tidak bisa login'],
       ['dibuat_pada', 'waktu', ''],
       ['pin_hash', 'teks', 'Diisi otomatis lewat menu POS Daging → Atur PIN. Jangan diubah manual.'],
       ['pin_salt', 'teks', 'Diisi otomatis'],
       ['gagal_login', 'angka', 'Jumlah salah PIN berturut-turut'],
-      ['terkunci_sampai', 'waktu', 'Kosong = tidak terkunci']
+      ['terkunci_sampai', 'waktu', 'Kosong = tidak terkunci'],
+      ['username', 'teks', 'Nama login: huruf kecil, angka, titik atau garis bawah, 3–20 karakter (unik)']
     ]
   },
   Pengaturan: {

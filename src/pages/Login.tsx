@@ -6,18 +6,18 @@ import { USAHA } from '@/data/dummy';
 
 export default function Login() {
   const { login, galat: galatAwal } = useAuth();
-  const [email, setEmail] = useState('');
+  const [akun, setAkun] = useState('');
   const [pin, setPin] = useState('');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState<string | null>(galatAwal);
 
   const kirim = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || pin.length !== 6) { setGalat('Isi email dan PIN 6 digit.'); return; }
+    if (!akun.trim() || pin.length !== 6) { setGalat('Isi username dan PIN 6 digit.'); return; }
     setProses(true);
     setGalat(null);
     try {
-      await login(email.trim(), pin);
+      await login(akun.trim(), pin);
     } catch (err) {
       setGalat(err instanceof ApiError ? err.message : 'Login gagal. Coba lagi.');
       setPin('');
@@ -35,9 +35,9 @@ export default function Login() {
           <p className="mt-1 text-sm text-white/60">Masuk untuk melanjutkan</p>
         </div>
         <form onSubmit={kirim} className="rounded-2xl bg-white p-5 shadow-pop">
-          <label className="label" htmlFor="email">Email</label>
-          <input id="email" type="email" autoComplete="username" inputMode="email" className="input" value={email}
-            onChange={(e) => setEmail(e.target.value)} placeholder="nama@email.com" />
+          <label className="label" htmlFor="akun">Username</label>
+          <input id="akun" type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="input" value={akun}
+            onChange={(e) => setAkun(e.target.value)} placeholder="mis. ady (atau email)" />
           <label className="label mt-4" htmlFor="pin">PIN</label>
           <input id="pin" type="password" autoComplete="current-password" inputMode="numeric" maxLength={6}
             className="input num text-center text-2xl tracking-[0.5em]" value={pin}

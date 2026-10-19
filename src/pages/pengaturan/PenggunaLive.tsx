@@ -10,8 +10,8 @@ import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import { api, type PenggunaSheet, type Peran } from '@/services/api';
 
-type Form = { id_pengguna?: string; nama: string; email: string; peran: Peran; aktif: boolean };
-const KOSONG: Form = { nama: '', email: '', peran: 'kasir', aktif: true };
+type Form = { id_pengguna?: string; nama: string; username: string; email: string; peran: Peran; aktif: boolean };
+const KOSONG: Form = { nama: '', username: '', email: '', peran: 'kasir', aktif: true };
 
 /** Kelola pengguna & PIN langsung di Google Sheets (khusus pemilik). */
 export function PenggunaLive() {
@@ -36,7 +36,7 @@ export function PenggunaLive() {
     setProses(true);
     try {
       await api.rpc('pengguna.simpan', form);
-      toast({ jenis: 'sukses', judul: form.id_pengguna ? 'Pengguna diperbarui' : 'Pengguna ditambahkan', pesan: form.id_pengguna ? form.nama : `${form.nama}. Atur PIN agar bisa login.` });
+      toast({ jenis: 'sukses', judul: form.id_pengguna ? 'Pengguna diperbarui' : 'Pengguna ditambahkan', pesan: form.id_pengguna ? form.nama : `${form.nama}. Atur PIN agar bisa login dengan username ${form.username || form.email}.` });
       setForm(null);
       await muat();
     } catch (e) { toast({ jenis: 'gagal', judul: 'Gagal menyimpan', pesan: (e as Error).message }); } finally { setProses(false); }
@@ -65,7 +65,7 @@ export function PenggunaLive() {
           {daftar.map((u) => (
             <li key={u.id_pengguna} className="flex flex-wrap items-center gap-3 px-5 py-3">
               <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-50 text-sm font-bold text-brand-800">{u.nama.charAt(0).toUpperCase()}</span>
-              <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{u.nama}{u.id_pengguna === saya?.id_pengguna && <span className="font-normal text-gray-400"> (Anda)</span>}</p><p className="truncate text-xs text-gray-500">{u.email}</p></div>
+              <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{u.nama}{u.id_pengguna === saya?.id_pengguna && <span className="font-normal text-gray-400"> (Anda)</span>}</p><p className="truncate text-xs text-gray-500">{u.username ? `@${u.username}` : 'Belum ada username'}{u.email ? `, ${u.email}` : ''}</p></div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge nada={u.peran === 'pemilik' ? 'brand' : u.peran === 'admin' ? 'biru' : 'abu'} titik={false}>{u.peran}</Badge>
                 {!u.aktif && <Badge nada="abu">Nonaktif</Badge>}
@@ -74,7 +74,7 @@ export function PenggunaLive() {
               </div>
               <div className="flex gap-1">
                 <button onClick={() => { setPinUntuk(u); setPin(''); }} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" title="Atur PIN" aria-label={`Atur PIN ${u.nama}`}><KeyRound className="h-4 w-4" /></button>
-                <button onClick={() => setForm({ id_pengguna: u.id_pengguna, nama: u.nama, email: u.email, peran: u.peran, aktif: u.aktif })} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" title="Ubah" aria-label={`Ubah ${u.nama}`}><Pencil className="h-4 w-4" /></button>
+                <button onClick={() => setForm({ id_pengguna: u.id_pengguna, nama: u.nama, username: u.username, email: u.email, peran: u.peran, aktif: u.aktif })} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" title="Ubah" aria-label={`Ubah ${u.nama}`}><Pencil className="h-4 w-4" /></button>
               </div>
             </li>
           ))}
@@ -86,7 +86,9 @@ export function PenggunaLive() {
         {form && (
           <div className="space-y-4">
             <Input label="Nama" value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} />
-            <Input label="Email (untuk login)" type="email" inputMode="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <Input label="Username (untuk login)" autoCapitalize="none" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '') })}
+              bantuan="3–20 karakter: huruf kecil, angka, titik, garis bawah. Mis. dimas" />
+            <Input label="Email (opsional)" type="email" inputMode="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             <Select label="Peran" value={form.peran} onChange={(e) => setForm({ ...form, peran: e.target.value as Peran })}
               opsi={[{ nilai: 'kasir', label: 'Kasir: kasir, pesanan, produk (lihat), stok, pelanggan' }, { nilai: 'admin', label: 'Admin: semua kecuali keuangan, laporan, pengaturan' }, { nilai: 'pemilik', label: 'Pemilik: semua menu' }]} />
             <Toggle label="Aktif" keterangan="Nonaktif = tidak bisa login, riwayat tetap tersimpan" checked={form.aktif} onChange={(v) => setForm({ ...form, aktif: v })} />
@@ -94,7 +96,7 @@ export function PenggunaLive() {
         )}
       </Modal>
 
-      <Modal buka={!!pinUntuk} onTutup={() => setPinUntuk(null)} judul="Atur PIN" sub={pinUntuk ? `${pinUntuk.nama}, ${pinUntuk.email}` : ''} lebar="sm"
+      <Modal buka={!!pinUntuk} onTutup={() => setPinUntuk(null)} judul="Atur PIN" sub={pinUntuk ? `${pinUntuk.nama}${pinUntuk.username ? ` (@${pinUntuk.username})` : ''}` : ''} lebar="sm"
         footer={<><Button varian="garis" onClick={() => setPinUntuk(null)}>Batal</Button><Button disabled={proses || pin.length !== 6} onClick={() => void simpanPin()}>{proses ? 'Menyimpan…' : 'Simpan PIN'}</Button></>}>
         <label className="label" htmlFor="pinbaru">PIN baru (6 digit)</label>
         <input id="pinbaru" inputMode="numeric" autoComplete="new-password" maxLength={6} className="input num text-center text-2xl tracking-[0.5em]"

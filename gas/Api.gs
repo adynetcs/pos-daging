@@ -102,16 +102,14 @@ function aksiHealth_() {
 }
 
 function aksiLogin_(ctx) {
-  var email = String(ctx.payload.email || '').trim().toLowerCase();
+  var login = String(ctx.payload.login || ctx.payload.email || '').trim().toLowerCase();
   var pin = String(ctx.payload.pin || '');
-  if (!email || !/^\d{6}$/.test(pin)) throw galat_('Email dan PIN 6 digit wajib diisi', 'VALIDASI');
+  if (!login || !/^\d{6}$/.test(pin)) throw galat_('Username dan PIN 6 digit wajib diisi', 'VALIDASI');
 
-  var daftar = baca_('Pengguna');
-  var u = null;
-  for (var i = 0; i < daftar.length; i++) if (String(daftar[i].email).trim().toLowerCase() === email) { u = daftar[i]; break; }
-  // Pesan sama untuk email tidak ada / PIN salah agar tidak membocorkan akun yang terdaftar
-  var GAGAL = 'Email atau PIN salah';
-  if (!u || !bool_(u.aktif) || !u.pin_hash) { catatLog_(null, 'auth.gagal', 'Pengguna', email, 'Login gagal', ctx.requestId); throw galat_(GAGAL, 'AUTH'); }
+  var u = cariAkun_(login);
+  // Pesan sama untuk akun tidak ada / PIN salah agar tidak membocorkan akun yang terdaftar
+  var GAGAL = 'Username atau PIN salah';
+  if (!u || !bool_(u.aktif) || !u.pin_hash) { catatLog_(null, 'auth.gagal', 'Pengguna', login, 'Login gagal', ctx.requestId); throw galat_(GAGAL, 'AUTH'); }
 
   if (u.terkunci_sampai && String(u.terkunci_sampai) > sekarang_()) {
     throw galat_('Terlalu banyak percobaan. Coba lagi setelah ' + String(u.terkunci_sampai).slice(11, 16) + ' WIB', 'TERKUNCI');
@@ -147,25 +145,32 @@ function aksiPenggunaList_() {
 function aksiPenggunaSimpan_(ctx) {
   var p = ctx.payload;
   var nama = wajib_(p.nama, 'Nama');
-  var email = wajib_(p.email, 'Email').toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw galat_('Format email tidak valid', 'VALIDASI');
+  var username = String(p.username || '').trim().toLowerCase();
+  var email = String(p.email || '').trim().toLowerCase();
+  if (!username && !email) throw galat_('Isi username atau email', 'VALIDASI');
+  if (username && !POLA_USERNAME.test(username)) throw galat_('Username 3–20 karakter: huruf kecil, angka, titik, atau garis bawah', 'VALIDASI');
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw galat_('Format email tidak valid', 'VALIDASI');
   var peran = pilihan_(p.peran, ['pemilik', 'admin', 'kasir'], 'Peran');
   var aktif = p.aktif === undefined ? true : !!p.aktif;
 
   var semua = baca_('Pengguna');
-  var bentrok = semua.filter(function (u) { return String(u.email).toLowerCase() === email && u.id_pengguna !== p.id_pengguna; });
-  if (bentrok.length) throw galat_('Email sudah dipakai pengguna lain', 'VALIDASI');
+  semua.forEach(function (u) {
+    if (u.id_pengguna === p.id_pengguna) return;
+    if (email && String(u.email).toLowerCase() === email) throw galat_('Email sudah dipakai pengguna lain', 'VALIDASI');
+    if (username && String(u.username || '').toLowerCase() === username) throw galat_('Username sudah dipakai pengguna lain', 'VALIDASI');
+    if (username && String(u.email).toLowerCase() === username) throw galat_('Username bentrok dengan email pengguna lain', 'VALIDASI');
+  });
 
   if (p.id_pengguna) {
     var lama = cariSatu_(semua, 'id_pengguna', p.id_pengguna);
     if (!lama) throw galat_('Pengguna tidak ditemukan', 'NOT_FOUND');
     if (lama.id_pengguna === ctx.user.id_pengguna && (!aktif || peran !== 'pemilik')) throw galat_('Anda tidak bisa menonaktifkan atau menurunkan peran akun sendiri', 'VALIDASI');
-    ubah_('Pengguna', 'id_pengguna', p.id_pengguna, { nama: nama, email: email, peran: peran, aktif: aktif ? 'TRUE' : 'FALSE' });
+    ubah_('Pengguna', 'id_pengguna', p.id_pengguna, { nama: nama, username: username, email: email, peran: peran, aktif: aktif ? 'TRUE' : 'FALSE' });
     catatLog_(ctx.user.id_pengguna, 'pengguna.ubah', 'Pengguna', p.id_pengguna, nama + ' (' + peran + ')', ctx.requestId);
     return { id_pengguna: p.id_pengguna };
   }
   var id = idBerikut_('Pengguna', 'id_pengguna', 'USR-', 4);
-  tambah_('Pengguna', { id_pengguna: id, nama: nama, email: email, peran: peran, aktif: aktif ? 'TRUE' : 'FALSE', dibuat_pada: sekarang_(), gagal_login: 0 });
+  tambah_('Pengguna', { id_pengguna: id, nama: nama, username: username, email: email, peran: peran, aktif: aktif ? 'TRUE' : 'FALSE', dibuat_pada: sekarang_(), gagal_login: 0 });
   catatLog_(ctx.user.id_pengguna, 'pengguna.tambah', 'Pengguna', id, nama + ' (' + peran + ')', ctx.requestId);
   return { id_pengguna: id };
 }
@@ -261,7 +266,21 @@ function penggunaAktif_(id) {
 }
 
 function profil_(u) {
-  return { id_pengguna: u.id_pengguna, nama: u.nama, email: u.email, peran: u.peran };
+  return { id_pengguna: u.id_pengguna, nama: u.nama, username: String(u.username || ''), email: String(u.email || ''), peran: u.peran };
+}
+
+var POLA_USERNAME = /^[a-z0-9._]{3,20}$/;
+
+/** Cari pengguna berdasarkan username ATAU email (tanpa beda huruf besar/kecil). */
+function cariAkun_(login) {
+  login = String(login || '').trim().toLowerCase();
+  if (!login) return null;
+  var daftar = baca_('Pengguna');
+  for (var i = 0; i < daftar.length; i++) {
+    var d = daftar[i];
+    if (String(d.username || '').trim().toLowerCase() === login || String(d.email || '').trim().toLowerCase() === login) return d;
+  }
+  return null;
 }
 
 function pepper_() {
@@ -299,11 +318,10 @@ function onOpen() {
 
 function menuAturPin() {
   var ui = SpreadsheetApp.getUi();
-  var r1 = ui.prompt('Atur PIN', 'Email pengguna (harus sudah ada di tab Pengguna):', ui.ButtonSet.OK_CANCEL);
+  var r1 = ui.prompt('Atur PIN', 'Username atau email pengguna (harus sudah ada di tab Pengguna):', ui.ButtonSet.OK_CANCEL);
   if (r1.getSelectedButton() !== ui.Button.OK) return;
-  var email = r1.getResponseText().trim().toLowerCase();
-  var u = baca_('Pengguna').filter(function (x) { return String(x.email).trim().toLowerCase() === email; })[0];
-  if (!u) { ui.alert('Email tidak ditemukan di tab Pengguna.'); return; }
+  var u = cariAkun_(r1.getResponseText());
+  if (!u) { ui.alert('Username/email tidak ditemukan di tab Pengguna. Periksa kolom username atau email.'); return; }
   var r2 = ui.prompt('Atur PIN', 'PIN baru untuk ' + u.nama + ' (6 digit angka):', ui.ButtonSet.OK_CANCEL);
   if (r2.getSelectedButton() !== ui.Button.OK) return;
   var pin = r2.getResponseText().trim();

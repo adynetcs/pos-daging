@@ -5,11 +5,11 @@ interface Auth {
   pengguna: PenggunaSesi | null;
   memuat: boolean;
   galat: string | null;
-  login: (email: string, pin: string) => Promise<void>;
+  login: (akun: string, pin: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
-const PENGGUNA_DEMO: PenggunaSesi = { id_pengguna: 'demo', nama: 'Ady', email: 'demo@contoh.id', peran: 'pemilik' };
+const PENGGUNA_DEMO: PenggunaSesi = { id_pengguna: 'demo', nama: 'Ady', username: 'ady', email: 'demo@contoh.id', peran: 'pemilik' };
 const Ctx = createContext<Auth | null>(null);
 export const useAuth = () => {
   const c = useContext(Ctx);
@@ -30,9 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setMemuat(false));
   }, []);
 
-  const login = useCallback(async (email: string, pin: string) => {
+  const login = useCallback(async (akun: string, pin: string) => {
     setGalat(null);
-    const u = await api.login(email, pin);
+    const u = await api.login(akun, pin);
     setPengguna(u);
   }, []);
 
