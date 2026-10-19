@@ -12,18 +12,44 @@ interface Props {
 }
 const lebarKelas = { sm: 'sm:max-w-md', md: 'sm:max-w-xl', lg: 'sm:max-w-3xl', xl: 'sm:max-w-5xl' };
 
-/** Modal di desktop, bottom sheet di HP. Esc & klik latar untuk menutup. */
+/** Tumpukan modal yang sedang terbuka; hanya modal teratas yang menanggapi tombol Esc. */
+const tumpukan: symbol[] = [];
+
+/**
+ * Modal di desktop, bottom sheet di HP. Esc & klik latar untuk menutup.
+ *
+ * Catatan penting: efek di bawah HANYA bergantung pada `buka`. `onTutup` disimpan di ref,
+ * karena induk biasanya mengirim fungsi baru di setiap render (mis. `onTutup={() => setX(null)}`).
+ * Jika `onTutup` dijadikan dependensi, efek berjalan ulang di setiap ketikan dan memindahkan
+ * fokus ke kotak modal, sehingga input hanya menerima satu huruf.
+ */
 export function Modal({ buka, onTutup, judul, sub, children, footer, lebar = 'md' }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const onTutupRef = useRef(onTutup);
+  useEffect(() => { onTutupRef.current = onTutup; });
+
   useEffect(() => {
     if (!buka) return;
-    const f = (e: KeyboardEvent) => e.key === 'Escape' && onTutup();
+    const id = Symbol('modal');
+    tumpukan.push(id);
+    const sebelumnya = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const f = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && tumpukan[tumpukan.length - 1] === id) onTutupRef.current();
+    };
     document.addEventListener('keydown', f);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    ref.current?.focus();
-    return () => { document.removeEventListener('keydown', f); document.body.style.overflow = prev; };
-  }, [buka, onTutup]);
+    // Fokus awal SEKALI saat dibuka, dan jangan merebut fokus dari input ber-autoFocus di dalam modal.
+    if (ref.current && !ref.current.contains(document.activeElement)) ref.current.focus();
+    return () => {
+      document.removeEventListener('keydown', f);
+      document.body.style.overflow = prev;
+      tumpukan.splice(tumpukan.indexOf(id), 1);
+      // Kembalikan fokus ke tombol yang membuka modal (aksesibilitas keyboard).
+      if (sebelumnya && document.contains(sebelumnya)) sebelumnya.focus();
+    };
+  }, [buka]);
+
   if (!buka) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true">

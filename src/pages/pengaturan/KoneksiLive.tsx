@@ -6,6 +6,17 @@ import { LoadingState } from '@/components/ui/States';
 import { api, type KesehatanServer } from '@/services/api';
 import { angka } from '@/utils/format';
 
+/** Satu baris status. Didefinisikan di luar komponen agar identitasnya stabil antar-render. */
+function Baris({ ok, label, nilai }: { ok: boolean; label: string; nilai?: string }) {
+  return (
+    <li className="flex items-start gap-2.5 py-2 text-sm">
+      {ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />}
+      <span className="flex-1">{label}</span>
+      {nilai && <span className="num text-gray-500">{nilai}</span>}
+    </li>
+  );
+}
+
 /** Status koneksi Vercel → Apps Script → Google Sheets, diuji langsung. */
 export function KoneksiLive() {
   const [h, setH] = useState<KesehatanServer | null>(null);
@@ -21,14 +32,6 @@ export function KoneksiLive() {
     } catch (e) { setGalat((e as Error).message); setH(null); } finally { setMemuat(false); }
   }, []);
   useEffect(() => { void uji(); }, [uji]);
-
-  const Baris = ({ ok, label, nilai }: { ok: boolean; label: string; nilai?: string }) => (
-    <li className="flex items-start gap-2.5 py-2 text-sm">
-      {ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />}
-      <span className="flex-1">{label}</span>
-      {nilai && <span className="num text-gray-500">{nilai}</span>}
-    </li>
-  );
 
   return (
     <div className="space-y-4">
