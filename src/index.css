@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+html, body { height: 100%; background: #F5F5F6; color: #1F1416; }
+body { -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+#root { min-height: 100%; }
+
+@layer components {
+  .card { @apply rounded-2xl border border-gray-200/80 bg-white shadow-card; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50; }
+  .input { @apply w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-[15px] text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 sm:text-sm; }
+  .label { @apply mb-1.5 block text-[13px] font-semibold text-gray-700; }
+  .th { @apply whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-gray-500; }
+  .td { @apply whitespace-nowrap px-4 py-3 text-sm text-gray-700; }
+  .num { font-variant-numeric: tabular-nums; }
+}
+
+:focus-visible { outline: 2px solid #B23A45; outline-offset: 2px; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.toast-in { animation: toast-in .18s ease-out; }
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-in { animation: sheet-in .22s cubic-bezier(.2,.8,.2,1); }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.fade-in { animation: fade-in .15s ease-out; }
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skeleton { background: linear-gradient(90deg,#eee 0,#f6f6f6 40px,#eee 80px); background-size: 800px 100%; animation: shimmer 1.2s infinite linear; }
+@keyframes scale-tick { 0% { transform: translateY(-2px); } 100% { transform: none; } }
+.scale-tick { animation: scale-tick .12s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; inset: 0; }
+}
