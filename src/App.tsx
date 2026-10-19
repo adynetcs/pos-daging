@@ -30,7 +30,7 @@ function Gerbang() {
   const { pengguna, memuat } = useAuth();
   if (memuat) {
     return (
-      <div className="grid min-h-full place-items-center bg-ink-900 text-white/70">
+      <div className="grid min-h-screen place-items-center bg-ink-900 text-white/70" style={{ minHeight: '100dvh' }}>
         <p className="text-sm">Memeriksa sesi…</p>
       </div>
     );
