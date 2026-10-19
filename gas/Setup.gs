@@ -10,6 +10,20 @@
  * Script ini TIDAK membuat transaksi contoh. Hanya struktur, validasi, dan pengaturan awal.
  */
 
+/* =========================================================
+ * AKUN PEMILIK — ISI DI SINI, LALU RUN setupDatabase
+ * ---------------------------------------------------------
+ * Setelah muncul "Akun pemilik siap", KOSONGKAN lagi isian pin
+ * (jadi '') lalu simpan (Ctrl+S), supaya PIN tidak tertinggal di kode.
+ * PIN di spreadsheet tetap tersimpan dalam bentuk hash.
+ * Kosongkan username/pin jika tidak ingin mengubah akun pemilik.
+ * ======================================================= */
+var AKUN_PEMILIK = {
+  nama: 'Ady',      // nama yang tampil di aplikasi
+  username: '',     // contoh: 'ady'  (huruf kecil, angka, titik, garis bawah; 3–20 karakter)
+  pin: ''           // 6 digit angka, contoh format: '123456' (jangan pakai yang mudah ditebak)
+};
+
 /** Versi skema. Naikkan jika kolom berubah. */
 var SKEMA_VERSI = '1.2.0';
 
@@ -304,9 +318,10 @@ function setupDatabase() {
   isiPengaturan_(ss.getSheetByName('Pengaturan'));
   isiPelangganUmum_(ss.getSheetByName('Pelanggan'));
   isiPemilik_(ss.getSheetByName('Pengguna'));
+  var infoAkun = siapkanAkunPemilik_();
 
   ss.setActiveSheet(ss.getSheetByName('Produk'));
-  var pesan = 'Selesai.\nTab baru: ' + (dibuat.join(', ') || '-') + '\nTab sudah ada (dicek): ' + (dicek.join(', ') || '-');
+  var pesan = 'Selesai.\nTab baru: ' + (dibuat.join(', ') || '-') + '\nTab sudah ada (dicek): ' + (dicek.join(', ') || '-') + '\n\n' + infoAkun;
   Logger.log(pesan);
   try { SpreadsheetApp.getUi().alert('POS Daging', pesan, SpreadsheetApp.getUi().ButtonSet.OK); } catch (e) { /* dijalankan dari editor */ }
 }
@@ -391,4 +406,31 @@ function isiPemilik_(sh) {
 
 function waktuSekarang_() {
   return Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd HH:mm:ss');
+}
+
+/** Buat/perbarui akun pemilik (USR-0001) dari isian AKUN_PEMILIK di atas. */
+function siapkanAkunPemilik_() {
+  var username = String(AKUN_PEMILIK.username || '').trim().toLowerCase();
+  var pin = String(AKUN_PEMILIK.pin || '').trim();
+  if (!username && !pin) return 'Akun pemilik: tidak diubah (isian AKUN_PEMILIK kosong).';
+  if (!/^[a-z0-9._]{3,20}$/.test(username)) throw new Error('AKUN_PEMILIK.username tidak valid. Pakai 3–20 karakter: huruf kecil, angka, titik, garis bawah.');
+  if (!/^\d{6}$/.test(pin)) throw new Error('AKUN_PEMILIK.pin harus tepat 6 digit angka.');
+  if (/^(\d)\1{5}$/.test(pin) || pin === '123456' || pin === '654321' || pin === '012345') throw new Error('AKUN_PEMILIK.pin terlalu mudah ditebak. Pilih PIN lain.');
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Pengguna');
+  var h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var data = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, h.length).getValues() : [];
+  var iUser = h.indexOf('username'), iId = h.indexOf('id_pengguna');
+  data.forEach(function (r) {
+    if (String(r[iId]) !== 'USR-0001' && String(r[iUser]).toLowerCase() === username) throw new Error('Username "' + username + '" sudah dipakai pengguna lain.');
+  });
+
+  ubah_('Pengguna', 'id_pengguna', 'USR-0001', {
+    nama: String(AKUN_PEMILIK.nama || 'Pemilik').trim() || 'Pemilik',
+    username: username, peran: 'pemilik', aktif: 'TRUE'
+  });
+  aturPinInternal_('USR-0001', pin);
+  catatLog_('USR-0001', 'pengguna.aturPin', 'Pengguna', 'USR-0001', 'Akun pemilik disiapkan lewat setupDatabase', '');
+  return 'Akun pemilik siap. Login dengan username "' + username + '" dan PIN yang Anda isi.\n' +
+         'PENTING: kosongkan lagi isian pin di AKUN_PEMILIK lalu simpan (Ctrl+S).';
 }
