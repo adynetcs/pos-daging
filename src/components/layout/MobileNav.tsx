@@ -1,11 +1,15 @@
 import { LayoutDashboard, ClipboardList, ShoppingCart, Warehouse, Menu } from 'lucide-react';
 import { useNav } from '@/context/NavContext';
 import type { PageKey } from '@/types';
+import { useAuth } from '@/context/AuthContext';
+import { bolehBuka } from './menu';
 
 /** Navigasi bawah untuk HP: menu tersering + tombol Kasir besar di tengah. */
 export function MobileNav({ onLainnya }: { onLainnya: () => void }) {
   const { halaman, buka } = useNav();
+  const { pengguna } = useAuth();
   const item = (key: PageKey, label: string, Ikon: typeof Menu) => {
+    if (!bolehBuka(pengguna!.peran, key)) return <span className="flex-1" />;
     const aktif = halaman === key;
     return (
       <button onClick={() => buka(key)} aria-current={aktif ? 'page' : undefined}

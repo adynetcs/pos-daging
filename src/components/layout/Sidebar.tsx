@@ -1,22 +1,27 @@
-import { ChevronRight, X } from 'lucide-react';
+import { LogOut, X } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { useNav } from '@/context/NavContext';
-import { MENU } from './menu';
+import { menuUntuk } from './menu';
 import { Logo } from './Logo';
 import { IS_DEMO } from '@/services/api';
 
 const GRUP = { operasional: 'Operasional', data: 'Data & persediaan', bisnis: 'Bisnis' } as const;
 
+const LABEL_PERAN = { pemilik: 'Pemilik usaha', admin: 'Admin', kasir: 'Kasir' } as const;
+
 function IsiSidebar({ onPilih }: { onPilih?: () => void }) {
   const { halaman, buka } = useNav();
+  const { pengguna, logout } = useAuth();
+  const menu = menuUntuk(pengguna!.peran);
   return (
     <div className="flex h-full flex-col bg-ink-900 text-white">
       <div className="px-5 pb-5 pt-6"><Logo /></div>
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4" aria-label="Menu utama">
-        {(Object.keys(GRUP) as (keyof typeof GRUP)[]).map((g) => (
+        {(Object.keys(GRUP) as (keyof typeof GRUP)[]).filter((g) => menu.some((m) => m.grup === g)).map((g) => (
           <div key={g}>
             <p className="px-3 pb-1.5 text-[11px] font-semibold text-white/35">{GRUP[g]}</p>
             <ul className="space-y-0.5">
-              {MENU.filter((m) => m.grup === g).map((m) => {
+              {menu.filter((m) => m.grup === g).map((m) => {
                 const aktif = halaman === m.key;
                 return (
                   <li key={m.key}>
@@ -32,17 +37,22 @@ function IsiSidebar({ onPilih }: { onPilih?: () => void }) {
           </div>
         ))}
       </nav>
-      {IS_DEMO && (
-        <div className="mx-3 mb-3 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-[12px] text-amber-100/90">
-          <p className="font-bold text-amber-300">Mode demo</p>
-          <p className="mt-0.5 text-amber-100/70">Data contoh, tidak tersimpan ke database.</p>
-        </div>
-      )}
-      <button onClick={() => { buka('pengaturan'); onPilih?.(); }} className="flex items-center gap-3 border-t border-white/10 px-5 py-4 text-left hover:bg-white/5">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-sm font-bold">A</span>
-        <span className="flex-1 leading-tight"><span className="block text-sm font-semibold">Ady</span><span className="text-xs text-white/50">Pemilik usaha</span></span>
-        <ChevronRight className="h-4 w-4 text-white/40" />
-      </button>
+      <div className="mx-3 mb-3 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-[12px] text-amber-100/90">
+        {IS_DEMO ? (
+          <><p className="font-bold text-amber-300">Mode demo</p><p className="mt-0.5 text-amber-100/70">Data contoh, tidak tersimpan ke database.</p></>
+        ) : (
+          <><p className="font-bold text-emerald-300">Terhubung ke Google Sheets</p><p className="mt-0.5 text-amber-100/70">Login, pengguna, dan produk sudah data asli. Modul lain masih data contoh.</p></>
+        )}
+      </div>
+      <div className="flex items-center gap-3 border-t border-white/10 px-5 py-4">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-bold">{pengguna!.nama.charAt(0).toUpperCase()}</span>
+        <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{pengguna!.nama}</span><span className="text-xs text-white/50">{LABEL_PERAN[pengguna!.peran]}</span></span>
+        {!IS_DEMO && (
+          <button onClick={() => { void logout(); onPilih?.(); }} className="rounded-lg p-2 text-white/50 hover:bg-white/10 hover:text-white" aria-label="Keluar" title="Keluar">
+            <LogOut className="h-4 w-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

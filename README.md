@@ -84,3 +84,43 @@ Diterapkan di `utils/finance.ts`:
 ## Deploy ke Vercel
 
 Framework preset: Vite. Build command `npm run build`, output `dist`. `vercel.json` sudah berisi rewrite SPA.
+
+## Tahap 5 — Koneksi ke Google Sheets (sudah tersedia)
+
+Arsitektur: **Browser → Vercel `/api` → Google Apps Script → Google Sheets.**
+Browser tidak pernah mengetahui URL Apps Script maupun kunci rahasia.
+
+```
+api/
+  health.ts          GET  cek konfigurasi + koneksi
+  auth/login.ts      POST email + PIN → cookie sesi HttpOnly (12 jam)
+  auth/logout.ts     POST
+  auth/me.ts         GET  pengguna yang sedang login
+  rpc.ts             POST satu pintu untuk aksi data (daftar aksi di-whitelist)
+  _lib/              pemanggil GAS, sesi HMAC, helper (tidak menjadi route)
+gas/
+  Setup.gs           membuat/memperbarui struktur 18 tab
+  Api.gs             doPost: validasi API_SECRET, peran, payload, kunci tulis, log aktivitas
+```
+
+Environment Variables di Vercel (Settings → Environment Variables):
+
+| Nama | Isi | Rahasia? |
+|---|---|---|
+| `VITE_DATA_MODE` | `api` | Tidak |
+| `GAS_URL` | URL Web App Apps Script (`.../exec`) | Ya |
+| `GAS_SECRET` | Kunci acak, sama dengan `API_SECRET` di Script Properties | Ya |
+| `SESSION_SECRET` | Kunci acak lain, hanya di Vercel | Ya |
+
+Buat kunci acak di terminal: `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`
+
+Keamanan yang diterapkan: PIN di-hash (salt per pengguna + pepper rahasia), akun terkunci 15 menit setelah 5 PIN salah,
+pesan gagal login tidak membedakan email/PIN, identitas pengguna diambil dari cookie bertanda tangan (bukan dari body),
+peran diperiksa ulang di Apps Script untuk setiap aksi, penulisan memakai LockService, setiap perubahan dicatat di Log_Aktivitas.
+
+Yang sudah memakai data asli di mode `api`: login, pengguna & PIN, master produk, status koneksi.
+Modul lain (kasir, pesanan, stok, pembelian, keuangan) masih data contoh sampai Tahap 6.
+
+Keterbatasan Google Sheets: penulisan diproses satu per satu (antre lewat LockService) dan tiap permintaan butuh 1–3 detik.
+Cocok untuk 1 toko dengan beberapa kasir. Jika transaksi ramai bersamaan atau data sudah puluhan ribu baris,
+pindahkan penyimpanan ke database (mis. PostgreSQL) cukup dengan mengganti isi `api/_lib/gas.ts`; frontend tidak berubah.

@@ -10,6 +10,8 @@ import { ProductThumb } from '@/components/ui/ProductThumb';
 import { StrukKertas } from './kasir/Struk';
 import { USAHA, HARI_INI } from '@/data/dummy';
 import { IS_DEMO } from '@/services/api';
+import { PenggunaLive } from './pengaturan/PenggunaLive';
+import { KoneksiLive } from './pengaturan/KoneksiLive';
 import { qtySatuan, rupiah } from '@/utils/format';
 import { targetDP } from '@/utils/calc';
 
@@ -33,12 +35,15 @@ const PENGGUNA = [
 ];
 const AKSES: [string, boolean, boolean, boolean][] = [
   ['Kasir & penjualan', true, true, true],
-  ['Pesanan partai', true, true, false],
-  ['Produk & harga', true, true, false],
-  ['Stok & penyesuaian', true, true, false],
+  ['Pesanan partai', true, true, true],
+  ['Produk (lihat)', true, true, true],
+  ['Produk (tambah & ubah harga)', true, true, false],
+  ['Stok', true, true, true],
+  ['Pelanggan', true, true, true],
   ['Pembelian & supplier', true, true, false],
-  ['Keuangan & laba rugi', true, false, false],
-  ['Pengaturan', true, false, false],
+  ['Dashboard', true, true, false],
+  ['Keuangan & laporan', true, false, false],
+  ['Pengaturan & pengguna', true, false, false],
 ];
 
 export default function Pengaturan() {
@@ -82,7 +87,7 @@ export default function Pengaturan() {
 
           {b === 'pengguna' && (
             <div className="space-y-4">
-              <Card className="overflow-hidden">
+              {!IS_DEMO ? <PenggunaLive /> : <Card className="overflow-hidden">
                 <CardHeader judul="Pengguna" aksi={<Button ukur="sm" varian="garis" onClick={() => toast({ jenis: 'info', judul: 'Fitur demo', pesan: 'Undangan pengguna aktif setelah sistem login terhubung.' })}>Undang pengguna</Button>} />
                 <ul className="divide-y divide-gray-100 border-t border-gray-100">
                   {PENGGUNA.map((u) => (
@@ -94,7 +99,7 @@ export default function Pengaturan() {
                     </li>
                   ))}
                 </ul>
-              </Card>
+              </Card>}
               <Card className="overflow-hidden">
                 <CardHeader judul="Hak akses per peran" />
                 <div className="overflow-x-auto border-t border-gray-100">
@@ -183,15 +188,16 @@ export default function Pengaturan() {
             </div>
           )}
 
-          {b === 'koneksi' && (
+          {b === 'koneksi' && !IS_DEMO && <KoneksiLive />}
+          {b === 'koneksi' && IS_DEMO && (
             <Card>
               <CardHeader judul="Koneksi data" sub="Google Sheets melalui Google Apps Script" />
               <div className="space-y-3 px-5 pb-5 text-sm">
                 <div className="flex items-center justify-between rounded-xl border border-gray-200 p-4">
-                  <div><p className="font-semibold">Status</p><p className="text-gray-500">{IS_DEMO ? 'Belum terhubung. Aplikasi memakai data contoh di memori browser.' : 'Mode GAS aktif (VITE_DATA_MODE=gas).'}</p></div>
-                  <Badge nada={IS_DEMO ? 'kuning' : 'hijau'}>{IS_DEMO ? 'Mode demo' : 'GAS'}</Badge>
+                  <div><p className="font-semibold">Status</p><p className="text-gray-500">Belum terhubung. Aplikasi memakai data contoh di memori browser.</p></div>
+                  <Badge nada="kuning">Mode demo</Badge>
                 </div>
-                <p className="text-gray-600">Untuk menghubungkan, isi <code className="rounded bg-gray-100 px-1">VITE_DATA_MODE=gas</code> dan <code className="rounded bg-gray-100 px-1">VITE_GAS_URL</code> di <code className="rounded bg-gray-100 px-1">.env.local</code> (lokal) atau di dashboard Vercel, lalu implementasikan pemanggilan di <code className="rounded bg-gray-100 px-1">src/services/api.ts</code>.</p>
+                <p className="text-gray-600">Untuk menghubungkan, isi <code className="rounded bg-gray-100 px-1">VITE_DATA_MODE=api</code> beserta <code className="rounded bg-gray-100 px-1">GAS_URL</code>, <code className="rounded bg-gray-100 px-1">GAS_SECRET</code>, dan <code className="rounded bg-gray-100 px-1">SESSION_SECRET</code> di Vercel → Settings → Environment Variables, lalu deploy ulang.</p>
               </div>
             </Card>
           )}

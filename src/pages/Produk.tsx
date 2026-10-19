@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { useProdukSheet } from '@/hooks/useProdukSheet';
+import { IS_DEMO } from '@/services/api';
+import { LoadingState, EmptyState } from '@/components/ui/States';
 import { Plus, Pencil } from 'lucide-react';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/context/ToastContext';
@@ -19,7 +24,11 @@ type FK = 'semua' | Kategori;
 const margin = (p: TProduk) => (p.hargaJual ? (p.hargaJual - p.hpp) / p.hargaJual : 0);
 
 export default function Produk() {
-  const { produk, simpanProduk } = useData();
+  const data = useData();
+  const sheet = useProdukSheet();
+  const { pengguna } = useAuth();
+  const bolehUbah = pengguna!.peran !== 'kasir';
+  const produk = IS_DEMO ? data.produk : sheet.daftar;
   const toast = useToast();
   const [q, setQ] = useState('');
   const [k, setK] = useState<FK>('semua');
@@ -43,13 +52,21 @@ export default function Produk() {
   return (
     <>
       <PageHeader judul="Produk" sub={`${produk.filter((p) => p.aktif).length} produk aktif dari ${produk.length} terdaftar.`}
-        aksi={<Button ikon={<Plus className="h-4 w-4" />} onClick={() => setEdit('baru')}>Tambah produk</Button>} />
+        aksi={<>
+          {!IS_DEMO && <Button varian="garis" ikon={<RefreshCw className="h-4 w-4" />} onClick={() => void sheet.muatUlang()}>Muat ulang</Button>}
+          {bolehUbah && <Button ikon={<Plus className="h-4 w-4" />} onClick={() => setEdit('baru')}>Tambah produk</Button>}
+        </>} />
       <Card className="overflow-hidden">
         <FilterBar>
           <SearchInput value={q} onChange={setQ} placeholder="Cari nama, SKU, atau potongan…" className="sm:w-80" />
           <FilterChips<FK> value={k} onChange={setK} opsi={[{ nilai: 'semua', label: 'Semua' }, ...(['sapi', 'ayam', 'kambing', 'kemasan'] as Kategori[]).map((x) => ({ nilai: x, label: LABEL_KATEGORI[x].replace('Daging ', '').replace('Produk ', ''), jumlah: produk.filter((p) => p.kategori === x).length }))]} />
         </FilterBar>
-        <DataTable data={daftar} kolom={kolom} rowKey={(p) => p.id} onRowClick={setDetail} kosong={{ judul: 'Produk tidak ditemukan', pesan: 'Coba kata kunci lain.' }}
+        {!IS_DEMO && sheet.memuat ? <LoadingState baris={6} /> : !IS_DEMO && sheet.galat ? (
+          <EmptyState judul="Gagal memuat produk" pesan={sheet.galat} aksi={<Button varian="garis" onClick={() => void sheet.muatUlang()}>Coba lagi</Button>} />
+        ) : !IS_DEMO && produk.length === 0 ? (
+          <EmptyState judul="Belum ada produk" pesan="Tambahkan produk pertama Anda. Data langsung tersimpan ke Google Sheets." aksi={bolehUbah ? <Button onClick={() => setEdit('baru')}>Tambah produk</Button> : undefined} />
+        ) : (
+        <DataTable data={daftar} kolom={bolehUbah ? kolom : kolom.filter((c) => c.key !== 'e')} rowKey={(p) => p.id} onRowClick={setDetail} kosong={{ judul: 'Produk tidak ditemukan', pesan: 'Coba kata kunci lain.' }}
           kartuMobile={(p) => (
             <div className="flex items-center gap-3">
               <ProductThumb produk={p} />
@@ -61,11 +78,13 @@ export default function Produk() {
               <div className="text-right"><p className="num text-sm">{qtySatuan(p.stok, p.satuan)}</p>{p.aktif ? <StokBadge stok={p.stok} min={p.stokMinimum} /> : <Badge>Nonaktif</Badge>}</div>
             </div>
           )} />
+        )}
       </Card>
-      <div className="mt-4"><CatatanDemo>Foto produk berupa ilustrasi. Unggah foto asli akan tersedia setelah penyimpanan file terhubung.</CatatanDemo></div>
+      <div className="mt-4">{IS_DEMO ? <CatatanDemo>Foto produk berupa ilustrasi. Unggah foto asli akan tersedia setelah penyimpanan file terhubung.</CatatanDemo>
+        : <p className="text-xs text-gray-500">Data produk tersimpan di Google Sheets. Stok dihitung dari riwayat mutasi stok; produk baru stoknya 0 sampai ada penerimaan barang.</p>}</div>
 
       <Modal buka={!!detail} onTutup={() => setDetail(null)} judul="Detail produk" lebar="md"
-        footer={<><Button varian="garis" onClick={() => setDetail(null)}>Tutup</Button><Button ikon={<Pencil className="h-4 w-4" />} onClick={() => { setEdit(detail); setDetail(null); }}>Ubah produk</Button></>}>
+        footer={<><Button varian="garis" onClick={() => setDetail(null)}>Tutup</Button>{bolehUbah && <Button ikon={<Pencil className="h-4 w-4" />} onClick={() => { setEdit(detail); setDetail(null); }}>Ubah produk</Button>}</>}>
         {detail && (
           <div className="grid gap-5 sm:grid-cols-[180px_1fr]">
             <ProductThumb produk={detail} ukuran="penuh" />
@@ -86,33 +105,45 @@ export default function Produk() {
         )}
       </Modal>
 
-      <FormProduk produk={edit} onTutup={() => setEdit(null)} onSimpan={(p) => {
-        simpanProduk(p); setEdit(null);
-        toast({ jenis: 'sukses', judul: edit === 'baru' ? 'Produk ditambahkan (demo)' : 'Produk diperbarui (demo)', pesan: p.nama });
+      <FormProduk produk={edit} onTutup={() => setEdit(null)} onSimpan={async (p) => {
+        const baru = edit === 'baru';
+        if (IS_DEMO) {
+          data.simpanProduk(p);
+        } else {
+          try { await sheet.simpan(p, baru); } catch (e) {
+            toast({ jenis: 'gagal', judul: 'Produk tidak tersimpan', pesan: (e as Error).message });
+            return;
+          }
+        }
+        setEdit(null);
+        toast({ jenis: 'sukses', judul: `${baru ? 'Produk ditambahkan' : 'Produk diperbarui'}${IS_DEMO ? ' (demo)' : ''}`, pesan: IS_DEMO ? p.nama : `${p.nama} tersimpan di Google Sheets.` });
       }} />
     </>
   );
 }
 
-function FormProduk({ produk, onTutup, onSimpan }: { produk: TProduk | 'baru' | null; onTutup: () => void; onSimpan: (p: TProduk) => void }) {
+function FormProduk({ produk, onTutup, onSimpan }: { produk: TProduk | 'baru' | null; onTutup: () => void; onSimpan: (p: TProduk) => Promise<void> }) {
   const kosong: TProduk = { id: '', sku: '', nama: '', kategori: 'sapi', potongan: '', tipe: 'timbang', satuan: 'kg', hpp: 0, hargaJual: 0, stok: 0, stokMinimum: 5, aktif: true };
   const [f, setF] = useState<TProduk>(kosong);
   const [err, setErr] = useState<Record<string, string>>({});
+  const [proses, setProses] = useState(false);
   useEffect(() => { if (produk) { setF(produk === 'baru' ? { ...kosong, id: `p${Date.now()}` } : produk); setErr({}); } }, [produk]); // eslint-disable-line
   const set = <K extends keyof TProduk>(k: K, v: TProduk[K]) => setF((x) => ({ ...x, [k]: v }));
   const n = (s: string) => parseInt(s.replace(/\D/g, ''), 10) || 0;
-  const simpan = () => {
+  const simpan = async () => {
     const e: Record<string, string> = {};
     if (!f.nama.trim()) e.nama = 'Nama wajib diisi.';
     if (!f.sku.trim()) e.sku = 'SKU wajib diisi.';
     if (f.hargaJual <= 0) e.harga = 'Harga jual harus lebih dari 0.';
     else if (f.hargaJual < f.hpp) e.harga = 'Harga jual di bawah HPP.';
     setErr(e);
-    if (!Object.keys(e).length) onSimpan(f);
+    if (Object.keys(e).length) return;
+    setProses(true);
+    try { await onSimpan(f); } finally { setProses(false); }
   };
   return (
     <Modal buka={!!produk} onTutup={onTutup} judul={produk === 'baru' ? 'Tambah produk' : 'Ubah produk'} lebar="md"
-      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button onClick={simpan}>Simpan produk</Button></>}>
+      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button onClick={() => void simpan()} disabled={proses}>{proses ? 'Menyimpan…' : 'Simpan produk'}</Button></>}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2"><Input label="Nama produk" value={f.nama} error={err.nama} onChange={(e) => set('nama', e.target.value)} placeholder="Mis. Daging Sapi Sandung Lamur" /></div>
         <Input label="SKU" value={f.sku} error={err.sku} onChange={(e) => set('sku', e.target.value.toUpperCase())} placeholder="SP-006" />
@@ -127,7 +158,7 @@ function FormProduk({ produk, onTutup, onSimpan }: { produk: TProduk | 'baru' | 
         <Input label="Stok minimum" akhiran={f.satuan} inputMode="decimal" value={String(f.stokMinimum).replace('.', ',')} onChange={(e) => set('stokMinimum', parseFloat(e.target.value.replace(',', '.')) || 0)} />
         <div className="flex items-end"><div className="w-full"><Toggle label="Produk aktif" keterangan="Tampil di kasir" checked={f.aktif} onChange={(v) => set('aktif', v)} /></div></div>
       </div>
-      {produk === 'baru' && <p className="mt-4 text-xs text-gray-500">Stok awal diisi lewat menu Stok, Terima barang, agar tercatat di riwayat mutasi.</p>}
+      {produk === 'baru' && <p className="mt-4 text-xs text-gray-500">Stok awal diisi lewat penerimaan barang agar tercatat di riwayat mutasi.</p>}
     </Modal>
   );
 }

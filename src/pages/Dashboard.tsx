@@ -2,6 +2,7 @@ import { ShoppingBag, ClipboardList, AlertTriangle, HandCoins, Wallet, ArrowUpRi
 import { useData, useLookup } from '@/context/DataContext';
 import { useNav } from '@/context/NavContext';
 import { useRingkasan } from '@/hooks/useRingkasan';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { AreaChart, DonutChart, ProgressBar } from '@/components/charts/Charts';
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const cari = useLookup();
   const { buka } = useNav();
   const r = useRingkasan();
+  const { pengguna } = useAuth();
   const rek = rekonsiliasiKas(d);
 
   const pesananTerbaru = [...d.pesanan].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 5);
@@ -28,7 +30,7 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        judul="Selamat datang, Ady"
+        judul={`Selamat datang, ${pengguna!.nama}`}
         sub={<>Ringkasan usaha untuk {namaHari(HARI_INI)}, {tanggalPendek(HARI_INI)}.</>}
         aksi={<>
           <Button varian="garis" ikon={<Plus className="h-4 w-4" />} onClick={() => buka('pesanan')}>Pesanan partai</Button>

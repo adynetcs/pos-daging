@@ -8,6 +8,7 @@ import { DemoBadge } from '@/components/ui/States';
 import { HARI_INI, SEKARANG } from '@/data/dummy';
 import { jam, tanggalHari, tanggalJam } from '@/utils/format';
 import { IS_DEMO } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 
 function PencarianGlobal() {
   const { produk, pelanggan, pesanan } = useData();
@@ -92,6 +93,7 @@ function Notifikasi() {
 
 export function Header({ onMenu }: { onMenu: () => void }) {
   const { halaman } = useNav();
+  const { pengguna } = useAuth();
   return (
     <header className="sticky z-20 border-b border-gray-200/80 bg-white/90 backdrop-blur" style={{ top: 'env(safe-area-inset-top,0px)' }}>
       <div className="flex h-16 items-center gap-3 px-4 lg:px-8">
@@ -100,15 +102,15 @@ export function Header({ onMenu }: { onMenu: () => void }) {
           <p className="truncate text-base font-bold text-gray-900">{labelHalaman(halaman)}</p>
         </div>
         <div className="hidden flex-1 lg:block"><PencarianGlobal /></div>
-        {IS_DEMO && <DemoBadge className="hidden sm:inline-flex" />}
+        {IS_DEMO ? <DemoBadge className="hidden sm:inline-flex" /> : <span className="hidden items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />TERHUBUNG</span>}
         <div className="hidden items-center gap-2 rounded-xl border border-gray-200 px-3 py-1.5 text-xs text-gray-600 xl:flex">
           <CalendarDays className="h-4 w-4 text-gray-400" />
           <span><span className="font-semibold text-gray-800">{tanggalHari(HARI_INI)}</span>, {jam(SEKARANG)} WIB</span>
         </div>
         <Notifikasi />
         <div className="hidden items-center gap-2.5 pl-1 sm:flex">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-100 text-sm font-bold text-brand-800">A</span>
-          <span className="hidden leading-tight md:block"><span className="block text-sm font-semibold">Ady</span><span className="text-xs text-gray-500">Pemilik</span></span>
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-100 text-sm font-bold text-brand-800">{pengguna!.nama.charAt(0).toUpperCase()}</span>
+          <span className="hidden leading-tight md:block"><span className="block text-sm font-semibold">{pengguna!.nama}</span><span className="text-xs capitalize text-gray-500">{pengguna!.peran}</span></span>
         </div>
       </div>
       {halaman === 'dashboard' && <div className="px-4 pb-3 lg:hidden"><PencarianGlobal /></div>}
