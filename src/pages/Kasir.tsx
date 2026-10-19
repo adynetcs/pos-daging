@@ -169,7 +169,7 @@ export default function Kasir() {
   );
 
   return (
-    <div className="grid gap-5 pb-16 lg:grid-cols-[minmax(0,1fr)_380px] lg:pb-0">
+    <div className="grid gap-5 pb-[calc(var(--tinggi-keranjang)+12px)] lg:grid-cols-[minmax(0,1fr)_380px] lg:pb-0">
       <div className="min-w-0">
         <div className="mb-4 hidden items-center justify-between gap-3 lg:flex">
           <div>
@@ -178,7 +178,10 @@ export default function Kasir() {
           </div>
           <DemoBadge />
         </div>
-        <div className="sticky z-10 -mx-4 space-y-3 bg-canvas/95 px-4 pb-3 pt-1 backdrop-blur lg:static lg:mx-0 lg:bg-transparent lg:px-0" style={{ top: 'calc(env(safe-area-inset-top,0px) + 64px)' }}>
+        {/* Pencarian + kategori menempel tepat di bawah header saat discroll (HP). Margin negatif
+            di sini sengaja menyamai padding <main> agar latar bilah ini selebar layar. */}
+        <div className="sticky z-10 -mx-3 mb-1 space-y-2 bg-canvas/95 px-3 pb-2.5 pt-1 backdrop-blur sm:-mx-4 sm:px-4 lg:static lg:mx-0 lg:mb-4 lg:space-y-3 lg:bg-transparent lg:px-0 lg:pt-0"
+          style={{ top: 'calc(var(--aman-atas) + var(--tinggi-header))' }}>
           <SearchInput value={q} onChange={setQ} placeholder="Cari nama produk atau SKU…" />
           <FilterChips<KatFilter> label="Kategori" value={kat} onChange={setKat}
             opsi={[
@@ -191,7 +194,7 @@ export default function Kasir() {
         {daftar.length === 0 ? (
           <div className="card"><EmptyState judul="Produk tidak ditemukan" pesan="Coba kata kunci lain atau pilih kategori Semua." /></div>
         ) : (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          <ul className="grid grid-cols-1 gap-2.5 min-[300px]:grid-cols-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-4">
             {daftar.map((p) => {
               const ada = diKeranjang(p.id);
               const sisa = p.stok - ada;
@@ -199,11 +202,11 @@ export default function Kasir() {
               return (
                 <li key={p.id}>
                   <button onClick={() => klikProduk(p)} disabled={p.stok <= 0}
-                    className={`card relative flex h-full w-full flex-col p-2.5 text-left transition-colors hover:border-brand-300 disabled:opacity-50 ${ada ? 'border-brand-400 ring-2 ring-brand-500/20' : ''}`}>
-                    <ProductThumb produk={p} ukuran="penuh" />
-                    {ada > 0 && <span className="num absolute right-3.5 top-3.5 rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">{qtySatuan(ada, p.satuan)}</span>}
-                    <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900">{p.nama}</p>
-                    <p className="num mt-auto pt-1 text-sm font-extrabold text-brand-800">{rupiah(p.hargaJual)}<span className="text-xs font-medium text-gray-500">/{p.satuan}</span></p>
+                    className={`card relative flex h-full w-full flex-col p-2 text-left transition-colors hover:border-brand-300 active:bg-gray-50 disabled:opacity-50 sm:p-2.5 ${ada ? 'border-brand-400 ring-2 ring-brand-500/20' : ''}`}>
+                    <ProductThumb produk={p} ukuran="kartu" />
+                    {ada > 0 && <span className="num absolute right-3 top-3 rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">{qtySatuan(ada, p.satuan)}</span>}
+                    <p className="mt-1.5 line-clamp-2 min-h-[2.25rem] text-[13px] font-semibold leading-[1.15rem] text-gray-900">{p.nama}</p>
+                    <p className="num mt-auto pt-1 text-[15px] font-extrabold leading-tight text-brand-800">{rupiah(p.hargaJual)}<span className="text-xs font-medium text-gray-500">/{p.satuan}</span></p>
                     <p className={`num flex items-center gap-1 text-[11px] ${tipis ? 'font-semibold text-red-600' : 'text-gray-500'}`}>
                       {p.satuan === 'kg' && <Scale className="h-3 w-3" />}Stok {qtySatuan(sisa, p.satuan)}
                     </p>
@@ -216,21 +219,24 @@ export default function Kasir() {
       </div>
 
       {/* Keranjang desktop */}
-      <aside className="card sticky hidden h-[calc(100dvh-7.5rem)] overflow-hidden lg:block" style={{ top: 'calc(env(safe-area-inset-top,0px) + 88px)' }}>{panelKeranjang}</aside>
+      <aside className="card sticky hidden h-[calc(100dvh-var(--tinggi-header)-var(--aman-atas)-3rem)] overflow-hidden lg:block"
+        style={{ top: 'calc(var(--aman-atas) + var(--tinggi-header) + 1.5rem)' }}>{panelKeranjang}</aside>
 
       {/* Bilah keranjang HP */}
-      <div className="fixed inset-x-0 z-30 px-3 lg:hidden" style={{ bottom: 'calc(env(safe-area-inset-bottom,0px) + 72px)' }}>
-        <button onClick={() => setSheet(true)} className="mx-auto flex w-full max-w-lg items-center gap-3 rounded-2xl bg-ink-900 px-4 py-3 text-white shadow-pop">
-          <span className="relative"><ShoppingCart className="h-5 w-5" />{jumlahItem > 0 && <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-brand-500 px-1 text-[10px] font-bold">{jumlahItem}</span>}</span>
-          <span className="flex-1 text-left text-sm font-semibold">{jumlahItem ? `${jumlahItem} produk di keranjang` : 'Keranjang kosong'}</span>
-          <span className="num text-base font-extrabold">{rupiah(total)}</span>
-          <ChevronUp className="h-4 w-4 opacity-60" />
+      <div className="fixed inset-x-0 z-30 px-3 lg:hidden" style={{ bottom: 'calc(var(--tinggi-nav) + var(--aman-bawah) + 8px)' }}>
+        <button onClick={() => setSheet(true)} aria-label={`Buka keranjang, ${jumlahItem} produk, total ${rupiah(total)}`}
+          className="mx-auto flex h-[var(--tinggi-keranjang)] w-full max-w-lg items-center gap-3 rounded-2xl bg-ink-900 px-4 text-white shadow-pop">
+          <span className="relative shrink-0"><ShoppingCart className="h-5 w-5" />{jumlahItem > 0 && <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-brand-500 px-1 text-[10px] font-bold">{jumlahItem}</span>}</span>
+          <span className="min-w-0 flex-1 truncate text-left text-sm font-semibold">{jumlahItem ? `${jumlahItem} produk` : 'Keranjang'}</span>
+          <span className="num shrink-0 text-base font-extrabold">{rupiah(total)}</span>
+          <span className="flex shrink-0 items-center gap-0.5 rounded-lg bg-white/10 px-2 py-1 text-xs font-bold">Buka<ChevronUp className="h-3.5 w-3.5" /></span>
         </button>
       </div>
       {sheet && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Keranjang">
           <div className="fade-in absolute inset-0 bg-ink-900/50" onClick={() => setSheet(false)} />
-          <div className="sheet-in absolute inset-x-0 bottom-0 flex h-[90dvh] flex-col rounded-t-3xl bg-white" style={{ paddingBottom: 'env(safe-area-inset-bottom,0px)' }}>
+          <div className="sheet-in absolute inset-x-0 bottom-0 flex flex-col rounded-t-3xl bg-white"
+            style={{ height: 'calc(100dvh - var(--aman-atas) - 24px)', paddingBottom: 'var(--aman-bawah)' }}>
             <button onClick={() => setSheet(false)} className="absolute right-3 top-3 z-10 rounded-lg p-1.5 text-gray-400" aria-label="Tutup keranjang"><X className="h-5 w-5" /></button>
             <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-gray-300" />
             <div className="min-h-0 flex-1">{panelKeranjang}</div>

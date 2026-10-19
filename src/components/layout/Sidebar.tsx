@@ -58,7 +58,7 @@ function IsiSidebar({ onPilih }: { onPilih?: () => void }) {
 }
 
 export function Sidebar() {
-  return <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block" style={{ paddingTop: 'env(safe-area-inset-top,0px)' }}><IsiSidebar /></aside>;
+  return <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block" style={{ paddingTop: 'var(--aman-atas)' }}><IsiSidebar /></aside>;
 }
 
 export function DrawerMenu({ buka, onTutup }: { buka: boolean; onTutup: () => void }) {
@@ -66,8 +66,8 @@ export function DrawerMenu({ buka, onTutup }: { buka: boolean; onTutup: () => vo
   return (
     <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
       <div className="fade-in absolute inset-0 bg-black/50" onClick={onTutup} />
-      <div className="absolute inset-y-0 left-0 w-[82%] max-w-xs shadow-pop" style={{ paddingTop: 'env(safe-area-inset-top,0px)', background: '#1F1416' }}>
-        <button onClick={onTutup} className="absolute right-3 top-5 z-10 rounded-lg p-2 text-white/60 hover:bg-white/10" aria-label="Tutup menu" style={{ marginTop: 'env(safe-area-inset-top,0px)' }}><X className="h-5 w-5" /></button>
+      <div className="absolute inset-y-0 left-0 w-[82%] max-w-xs shadow-pop" style={{ paddingTop: 'var(--aman-atas)', paddingBottom: 'var(--aman-bawah)', background: '#1F1416' }}>
+        <button onClick={onTutup} className="absolute right-3 top-5 z-10 rounded-lg p-2 text-white/60 hover:bg-white/10" aria-label="Tutup menu" style={{ marginTop: 'var(--aman-atas)' }}><X className="h-5 w-5" /></button>
         <IsiSidebar onPilih={onTutup} />
       </div>
     </div>

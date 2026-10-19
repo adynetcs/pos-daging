@@ -25,7 +25,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={tampil}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[70] flex flex-col items-center gap-2 px-4 lg:bottom-auto lg:left-auto lg:right-6 lg:top-6 lg:items-end" aria-live="polite">
+      <div className="pointer-events-none fixed inset-x-0 z-[70] flex flex-col items-center gap-2 px-3 lg:left-auto lg:right-6 lg:items-end"
+        style={{ top: 'calc(var(--aman-atas) + var(--tinggi-header) + 8px)' }} aria-live="polite">
         {list.map((t) => {
           const G = gaya[t.jenis];
           return (

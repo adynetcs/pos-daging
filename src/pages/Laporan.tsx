@@ -126,7 +126,7 @@ export default function Laporan() {
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <nav aria-label="Jenis laporan" className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:block lg:space-y-1 lg:px-0">
+        <nav aria-label="Jenis laporan" className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:block lg:space-y-1 lg:px-0">
           {JENIS.map((j) => (
             <button key={j.k} onClick={() => setJenis(j.k)} aria-current={jenis === j.k ? 'page' : undefined}
               className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold lg:w-full ${jenis === j.k ? 'bg-white text-brand-800 shadow-card ring-1 ring-brand-200' : 'text-gray-600 hover:bg-white'}`}>

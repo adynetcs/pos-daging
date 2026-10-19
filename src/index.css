@@ -2,14 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Ukuran tata letak & area aman layar (status bar / gesture bar) — SATU sumber.
+ * Area aman TIDAK dipasang di :root/body. Hanya elemen yang menempel ke tepi layar
+ * (header atas, navigasi bawah) yang menambahkannya, sehingga tidak dihitung ganda.
+ */
 :root {
   color-scheme: light;
-  box-sizing: border-box;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
   font-feature-settings: 'tnum' 1, 'cv11' 1;
+  --aman-atas: env(safe-area-inset-top, 0px);
+  --aman-bawah: env(safe-area-inset-bottom, 0px);
+  --tinggi-header: 56px;
+  --tinggi-nav: 60px;
+  --tinggi-keranjang: 52px;
 }
-html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+@media (min-width: 1024px) {
+  :root { --tinggi-header: 64px; --tinggi-nav: 0px; }
+}
+html { scroll-padding-top: calc(var(--aman-atas) + var(--tinggi-header)); }
 html, body { height: 100%; background: #F5F5F6; color: #1F1416; }
 body { -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
 #root { min-height: 100%; }

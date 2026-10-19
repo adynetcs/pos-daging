@@ -61,8 +61,8 @@ function Bentuk({ p }: { p: Produk }) {
   );
 }
 
-export function ProductThumb({ produk, ukuran = 'md' }: { produk: Produk; ukuran?: 'sm' | 'md' | 'lg' | 'penuh' }) {
-  const k = { sm: 'h-9 w-9 rounded-lg', md: 'h-12 w-12 rounded-xl', lg: 'h-20 w-20 rounded-2xl', penuh: 'aspect-[4/3] w-full rounded-xl' }[ukuran];
+export function ProductThumb({ produk, ukuran = 'md' }: { produk: Produk; ukuran?: 'sm' | 'md' | 'lg' | 'penuh' | 'kartu' }) {
+  const k = { sm: 'h-9 w-9 rounded-lg', md: 'h-12 w-12 rounded-xl', lg: 'h-20 w-20 rounded-2xl', penuh: 'aspect-[4/3] w-full rounded-xl', kartu: 'aspect-[16/10] w-full rounded-lg' }[ukuran];
   return (
     <span className={`block shrink-0 overflow-hidden ${k}`} style={{ background: palet[produk.kategori].bg }} aria-hidden="true">
       <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="xMidYMid meet"><Bentuk p={produk} /></svg>

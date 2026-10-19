@@ -60,7 +60,7 @@ export default function Pengaturan() {
     <>
       <PageHeader judul="Pengaturan" sub="Konfigurasi toko, pengguna, dan aturan transaksi." aksi={<Button ikon={<Check className="h-4 w-4" />} onClick={simpan}>Simpan perubahan</Button>} />
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <nav aria-label="Bagian pengaturan" className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:block lg:space-y-1 lg:px-0">
+        <nav aria-label="Bagian pengaturan" className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:block lg:space-y-1 lg:px-0">
           {BAGIAN.map((x) => (
             <button key={x.k} onClick={() => setB(x.k)} aria-current={b === x.k ? 'page' : undefined}
               className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold lg:w-full ${b === x.k ? 'bg-white text-brand-800 shadow-card ring-1 ring-brand-200' : 'text-gray-600 hover:bg-white'}`}>

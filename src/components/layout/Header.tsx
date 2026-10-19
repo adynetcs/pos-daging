@@ -95,9 +95,9 @@ export function Header({ onMenu }: { onMenu: () => void }) {
   const { halaman } = useNav();
   const { pengguna } = useAuth();
   return (
-    <header className="sticky z-20 border-b border-gray-200/80 bg-white/90 backdrop-blur" style={{ top: 'env(safe-area-inset-top,0px)' }}>
-      <div className="flex h-16 items-center gap-3 px-4 lg:px-8">
-        <button onClick={onMenu} className="grid h-10 w-10 place-items-center rounded-xl text-gray-700 hover:bg-gray-100 lg:hidden" aria-label="Buka menu"><Menu className="h-5 w-5" /></button>
+    <header className="sticky top-0 z-20 border-b border-gray-200/80 bg-white/95 backdrop-blur" style={{ paddingTop: 'var(--aman-atas)' }}>
+      <div className="flex h-[var(--tinggi-header)] items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:px-8">
+        <button onClick={onMenu} className="-ml-1 grid h-10 w-10 place-items-center rounded-xl text-gray-700 hover:bg-gray-100 lg:hidden" aria-label="Buka menu"><Menu className="h-5 w-5" /></button>
         <div className="min-w-0 flex-1 lg:hidden">
           <p className="truncate text-base font-bold text-gray-900">{labelHalaman(halaman)}</p>
         </div>

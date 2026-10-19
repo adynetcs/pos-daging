@@ -11,7 +11,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <DrawerMenu buka={drawer} onTutup={() => setDrawer(false)} />
       <div className="lg:pl-64">
         <Header onMenu={() => setDrawer(true)} />
-        <main className="mx-auto w-full max-w-[1500px] px-4 pb-28 pt-5 lg:px-8 lg:pb-10 lg:pt-7">{children}</main>
+        <main className="mx-auto w-full max-w-[1500px] px-3 pt-3 sm:px-4 sm:pt-4 lg:px-8 lg:pb-10 lg:pt-7"
+          style={{ paddingBottom: 'calc(var(--tinggi-nav) + var(--aman-bawah) + 16px)' }}>{children}</main>
       </div>
       <MobileNav onLainnya={() => setDrawer(true)} />
     </div>
