@@ -64,7 +64,7 @@ export function Modal({ buka, onTutup, judul, sub, children, footer, lebar = 'md
             <h2 id={idJudul} className="text-base font-bold text-gray-900">{judul}</h2>
             {sub && <p className="mt-0.5 text-[13px] text-gray-500">{sub}</p>}
           </div>
-          <button onClick={onTutup} className="-mr-1 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Tutup"><X className="h-5 w-5" /></button>
+          <button onClick={onTutup} className="-mr-1 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Tutup jendela"><X className="h-5 w-5" /></button>
         </header>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-5 py-3.5">{footer}</footer>}

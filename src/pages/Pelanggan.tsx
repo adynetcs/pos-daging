@@ -13,6 +13,7 @@ import { Input, Select } from '@/components/ui/FormInput';
 import { Catatan, EmptyState } from '@/components/ui/States';
 import type { JenisPelanggan, Pelanggan as TPelanggan } from '@/types';
 import { piutang, totalPesanan, totalTrx } from '@/utils/finance';
+import { TerimaPiutangModal, type Piutang } from '@/components/bisnis/TerimaPiutang';
 import { rupiah, tanggalPendek } from '@/utils/format';
 
 export default function Pelanggan() {
@@ -22,6 +23,7 @@ export default function Pelanggan() {
   const [j, setJ] = useState<'semua' | JenisPelanggan>('semua');
   const [detail, setDetail] = useState<TPelanggan | null>(null);
   const [form, setForm] = useState(false);
+  const [terima, setTerima] = useState<Piutang | null>(null);
   const pi = piutang(d);
 
   const statistik = (id: string) => {
@@ -77,6 +79,19 @@ export default function Pelanggan() {
                 <div key={a} className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">{a}</p><p className="num text-sm font-bold">{b}</p></div>
               ))}
             </div>
+            {pi.semua.some((x) => x.pelangganId === detail.id) && (
+              <>
+                <p className="mt-5 text-sm font-bold">Piutang belum lunas</p>
+                <ul className="mt-2 divide-y divide-gray-100 rounded-xl border border-amber-200 bg-amber-50/40">
+                  {pi.semua.filter((x) => x.pelangganId === detail.id).map((x) => (
+                    <li key={x.ref} className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm">
+                      <span><span className="font-semibold">{x.ref}</span><span className="block text-xs text-gray-500">{x.sumber}, {tanggalPendek(x.tanggal)}</span></span>
+                      <span className="flex items-center gap-2"><span className="num font-bold text-brand-800">{rupiah(x.nilai)}</span><Button ukur="sm" varian="garis" onClick={() => setTerima(x)}>Terima bayar</Button></span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
             <p className="mt-5 text-sm font-bold">Riwayat transaksi</p>
             {s.jumlah === 0 ? <EmptyState judul="Belum ada transaksi" /> : (
               <ul className="mt-2 divide-y divide-gray-100 rounded-xl border border-gray-200">
@@ -87,6 +102,7 @@ export default function Pelanggan() {
           </>
         )}
       </Modal>
+      <TerimaPiutangModal piutang={terima} onTutup={() => setTerima(null)} />
       <FormPelanggan buka={form} onTutup={() => setForm(false)} onSimpan={async (c) => { await d.simpanPelanggan(c); setForm(false); toast({ jenis: 'sukses', judul: 'Pelanggan tersimpan', pesan: c.nama }); }} />
     </>
   );

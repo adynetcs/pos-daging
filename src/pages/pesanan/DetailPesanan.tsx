@@ -4,7 +4,7 @@ import { useData, useLookup, pesanGalat } from '@/context/DataContext';
 import { useToast } from '@/context/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { Input } from '@/components/ui/FormInput';
+import { Input, Textarea } from '@/components/ui/FormInput';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusPesananBadge, STATUS_PESANAN, Badge } from '@/components/ui/StatusBadge';
 import { ProgressBar } from '@/components/charts/Charts';
@@ -41,11 +41,13 @@ export function DetailPesanan({ p }: { p: PesananPartai }) {
   const beratTotal = p.items.reduce((s, i) => s + (cari.produk(i.produkId)?.satuan === 'kg' ? i.qty : 0), 0);
   const lanjut = LANJUT[p.status];
 
-  const ubah = async (s: StatusPesanan) => {
+  const [alasanBatal, setAlasanBatal] = useState('');
+  const [refund, setRefund] = useState<boolean | null>(null);
+  const ubah = async (s: StatusPesanan, opsi?: { refund?: boolean; alasan?: string }) => {
     setProses(true);
     try {
-      await ubahStatusPesanan(p.id, s);
-      toast({ jenis: 'sukses', judul: `Status: ${STATUS_PESANAN[s].label}`, pesan: s === 'selesai' ? `${p.id} selesai. Stok sudah dikurangi.` : `${p.id} diperbarui.` });
+      await ubahStatusPesanan(p.id, s, opsi);
+      toast({ jenis: 'sukses', judul: `Status: ${STATUS_PESANAN[s].label}`, pesan: s === 'selesai' ? `${p.id} selesai. Stok sudah dikurangi.` : s === 'batal' && dibayar > 0 ? (opsi?.refund ? `Kembalikan DP ${rupiah(dibayar)} ke pelanggan.` : `DP ${rupiah(dibayar)} dicatat hangus (pendapatan lain-lain).`) : `${p.id} diperbarui.` });
     } catch (e) {
       toast({ jenis: 'gagal', judul: 'Status belum berubah', pesan: pesanGalat(e) });
     } finally {
@@ -99,7 +101,7 @@ export function DetailPesanan({ p }: { p: PesananPartai }) {
       <div className="mt-4 flex flex-wrap gap-2">
         {lanjut && <Button onClick={klikLanjut} disabled={proses}>{proses ? 'Menyimpan…' : lanjut.label}</Button>}
         {p.status !== 'batal' && sisa > 0 && p.status !== 'draft' && <Button varian="garis" ikon={<Wallet className="h-4 w-4" />} onClick={() => setModalBayar(true)}>Catat pembayaran</Button>}
-        {!['selesai', 'batal'].includes(p.status) && <Button varian="hantu" className="text-red-600 hover:bg-red-50 hover:text-red-700" ikon={<XCircle className="h-4 w-4" />} onClick={() => setKonfirmasi('batal')}>Batalkan</Button>}
+        {!['selesai', 'batal'].includes(p.status) && <Button varian="hantu" className="text-red-600 hover:bg-red-50 hover:text-red-700" ikon={<XCircle className="h-4 w-4" />} onClick={() => { setAlasanBatal(''); setRefund(null); setKonfirmasi('batal'); }}>Batalkan</Button>}
       </div>
 
       <h3 className="mt-6 text-sm font-bold">Item ({p.items.length}), total berat {berat(beratTotal)}</h3>
@@ -126,11 +128,11 @@ export function DetailPesanan({ p }: { p: PesananPartai }) {
             <li key={b.id} className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><Wallet className="h-4 w-4" /></span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold capitalize">{b.jenis === 'dp' ? 'DP' : b.jenis} <span className="font-normal text-gray-500">via {b.metode === 'qris' ? 'QRIS' : b.metode}</span></p>
+                <p className="text-sm font-semibold capitalize">{b.jenis === 'dp' ? 'DP' : b.jenis === 'refund' ? 'Pengembalian' : b.jenis} <span className="font-normal text-gray-500">via {b.metode === 'qris' ? 'QRIS' : b.metode}</span></p>
                 <p className="text-xs text-gray-500">{tanggalPendek(b.tanggal)}, {b.id}</p>
               </div>
               <div className="text-right">
-                <p className="num text-sm font-bold">{rupiah(b.jumlah)}</p>
+                <p className={`num text-sm font-bold ${b.jenis === 'refund' ? 'text-red-600' : ''}`}>{b.jenis === 'refund' ? '−' : ''}{rupiah(b.jumlah)}</p>
                 {b.bukti && <button onClick={() => setBukti(b.bukti!)} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline"><FileImage className="h-3 w-3" />Bukti</button>}
               </div>
             </li>
@@ -154,9 +156,24 @@ export function DetailPesanan({ p }: { p: PesananPartai }) {
           toast({ jenis: 'sukses', judul: `Pembayaran ${rupiah(b.jumlah)} tersimpan`, pesan: statusBaru !== p.status ? 'DP terpenuhi, status berubah menjadi Dalam proses.' : undefined });
         }} />
 
-      <ConfirmDialog buka={konfirmasi === 'batal'} bahaya judul="Batalkan pesanan?" labelYa="Ya, batalkan"
-        pesan={<>Pesanan {p.id} akan dibatalkan.{dibayar > 0 && <> Sudah ada pembayaran <b>{rupiah(dibayar)}</b>; pengembalian dana perlu dicatat terpisah.</>}</>}
-        onBatal={() => setKonfirmasi(null)} onYa={() => { void ubah('batal'); setKonfirmasi(null); }} />
+      <Modal buka={konfirmasi === 'batal'} onTutup={() => !proses && setKonfirmasi(null)} judul="Batalkan pesanan?" sub={`${p.id}, riwayat tetap tersimpan`} lebar="sm"
+        footer={<><Button varian="garis" onClick={() => setKonfirmasi(null)} disabled={proses}>Kembali</Button>
+          <Button varian="bahaya" disabled={proses || !alasanBatal.trim() || (dibayar > 0 && refund === null)} onClick={async () => { await ubah('batal', { refund: !!refund, alasan: alasanBatal.trim() }); setKonfirmasi(null); }}>{proses ? 'Membatalkan…' : 'Ya, batalkan'}</Button></>}>
+        <div className="space-y-3 text-sm">
+          {dibayar > 0 && (
+            <div role="radiogroup" aria-label="Penanganan DP" className="space-y-2">
+              <p className="font-semibold text-gray-800">Sudah ada pembayaran {rupiah(dibayar)}. Bagaimana DP-nya?</p>
+              {([[true, 'Kembalikan ke pelanggan', 'Kas berkurang. Tidak mempengaruhi laba.'], [false, 'DP hangus (tidak dikembalikan)', 'Dicatat sebagai pendapatan lain-lain di laba rugi.']] as const).map(([v, l, k]) => (
+                <button key={l} role="radio" aria-checked={refund === v} onClick={() => setRefund(v)}
+                  className={`w-full rounded-xl p-3 text-left ring-1 ring-inset ${refund === v ? 'bg-brand-50 ring-brand-400' : 'ring-gray-200 hover:bg-gray-50'}`}>
+                  <span className="block font-semibold">{l}</span><span className="text-xs text-gray-500">{k}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <Textarea label="Alasan pembatalan (wajib)" value={alasanBatal} onChange={(e) => setAlasanBatal(e.target.value)} placeholder="mis. acara dibatalkan pelanggan" />
+        </div>
+      </Modal>
       <ConfirmDialog buka={konfirmasi === 'proses_tanpa_dp'} judul="DP belum terpenuhi" labelYa="Tetap proses"
         pesan={<>DP baru {rupiah(dibayar)} dari target {rupiah(dp)}. Sesuai ketentuan, pesanan sebaiknya diproses setelah DP {pengaturan.dpPersen}% diterima.</>}
         onBatal={() => setKonfirmasi(null)} onYa={() => { void ubah('proses'); setKonfirmasi(null); }} />

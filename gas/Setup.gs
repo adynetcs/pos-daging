@@ -25,7 +25,7 @@ var AKUN_PEMILIK = {
 };
 
 /** Versi skema. Naikkan jika kolom berubah. */
-var SKEMA_VERSI = '1.3.0';
+var SKEMA_VERSI = '1.4.0';
 
 /**
  * Definisi skema. Setiap kolom: [nama, tipe, keterangan, pilihan?]
@@ -196,7 +196,9 @@ var SKEMA = {
       ['catatan', 'teks', ''],
       ['selesai_pada', 'waktu', ''],
       ['dibuat_pada', 'waktu', ''],
-      ['dibuat_oleh', 'ref', '→ Pengguna']
+      ['dibuat_oleh', 'ref', '→ Pengguna'],
+      ['dibatalkan_pada', 'waktu', ''],
+      ['alasan_batal', 'teks', 'Termasuk keputusan DP dikembalikan / hangus']
     ]
   },
   Detail_Pesanan: {

@@ -48,11 +48,11 @@ export function StrukKertas({ trx, diterima, kembalian }: { trx: TransaksiEceran
   );
 }
 
-export function StrukModal({ trx, diterima, kembalian, onTutup }: { trx: TransaksiEceran | null; diterima?: number; kembalian?: number; onTutup: () => void }) {
+export function StrukModal({ trx, diterima, kembalian, onTutup, cetakUlang }: { trx: TransaksiEceran | null; diterima?: number; kembalian?: number; onTutup: () => void; cetakUlang?: boolean }) {
   if (!trx) return null;
   return (
-    <Modal buka onTutup={onTutup} judul="Pembayaran berhasil" sub="Pratinjau struk" lebar="sm"
-      footer={<><Button varian="garis" ikon={<Printer className="h-4 w-4" />} onClick={() => window.print()}>Cetak</Button><Button onClick={onTutup}>Transaksi baru</Button></>}>
+    <Modal buka onTutup={onTutup} judul={cetakUlang ? `Struk ${trx.id}` : 'Pembayaran berhasil'} sub={cetakUlang ? 'Cetak ulang' : 'Pratinjau struk'} lebar="sm"
+      footer={<><Button varian="garis" ikon={<Printer className="h-4 w-4" />} onClick={() => window.print()}>Cetak</Button><Button onClick={onTutup}>{cetakUlang ? 'Tutup' : 'Transaksi baru'}</Button></>}>
       <div className="print-area rounded-xl bg-gray-100 p-4"><StrukKertas trx={trx} diterima={diterima} kembalian={kembalian} /></div>
     </Modal>
   );

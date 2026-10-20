@@ -89,6 +89,8 @@ var HANDLER = {
   'supplier.simpan': { peran: PENGELOLA, tulis: true, fn: aksiSupplierSimpan_ },
 
   'penjualan.simpan': { peran: SEMUA, tulis: true, fn: aksiPenjualanSimpan_ },
+  'penjualan.bayar': { peran: SEMUA, tulis: true, fn: aksiPenjualanBayar_ },
+  'penjualan.batal': { peran: PENGELOLA, tulis: true, fn: aksiPenjualanBatal_ },
 
   'pesanan.simpan': { peran: SEMUA, tulis: true, fn: aksiPesananSimpan_ },
   'pesanan.status': { peran: SEMUA, tulis: true, fn: aksiPesananStatus_ },
@@ -519,7 +521,7 @@ function aksiSemua_(ctx) {
     return {
       id: t.id_penjualan, waktu: t.waktu, id_pelanggan: t.id_pelanggan, diskon: angka_(t.diskon), total: angka_(t.total),
       items: (dPj[t.id_penjualan] || []).map(function (d) { return { id_produk: d.id_produk, qty: angka_(d.qty), harga: angka_(d.harga), hpp: angka_(d.hpp_satuan) }; }),
-      bayar: bayarPer('penjualan', t.id_penjualan).map(function (b) { return { metode: b.metode, jumlah: angka_(b.jumlah) }; })
+      bayar: bayarPer('penjualan', t.id_penjualan).filter(function (b) { return b.arah === 'masuk'; }).map(function (b) { return { metode: b.metode, jumlah: angka_(b.jumlah), waktu: b.waktu }; })
     };
   });
 
@@ -528,7 +530,8 @@ function aksiSemua_(ctx) {
       id: p.id_pesanan, tanggal: tgl_(p.tanggal), id_pelanggan: p.id_pelanggan, jadwal_kirim: tgl_(p.jadwal_kirim), alamat_kirim: p.alamat_kirim,
       dp_persen: angka_(p.dp_persen), status: p.status, catatan: p.catatan || '', selesai_pada: tgl_(p.selesai_pada),
       items: (dPs[p.id_pesanan] || []).map(function (d) { return { id_produk: d.id_produk, qty: angka_(d.qty), harga: angka_(d.harga), hpp: angka_(d.hpp_satuan) }; }),
-      bayar: bayarPer('pesanan', p.id_pesanan).map(function (b) { return { id: b.id_pembayaran, waktu: b.waktu, jenis: b.jenis, metode: b.metode, jumlah: angka_(b.jumlah), bukti: b.bukti_url || '' }; })
+      dibatalkan_pada: tgl_(p.dibatalkan_pada),
+      bayar: bayarPer('pesanan', p.id_pesanan).map(function (b) { return { id: b.id_pembayaran, waktu: b.waktu, arah: b.arah, jenis: b.jenis, metode: b.metode, jumlah: angka_(b.jumlah), bukti: b.bukti_url || '' }; })
     };
   });
 
@@ -726,6 +729,15 @@ function aksiPesananStatus_(ctx) {
   if ((ALUR_PESANAN[ps.status] || []).indexOf(ke) === -1) throw galat_('Status ' + ps.status + ' tidak bisa diubah menjadi ' + ke, 'VALIDASI');
 
   var patch = { status: ke };
+  if (ke === 'batal') {
+    var bersih = bayarBersih_('pesanan', id);
+    var kembalikan = !!ctx.payload.refund;
+    patch.dibatalkan_pada = sekarang_();
+    patch.alasan_batal = String(ctx.payload.alasan || '').trim() + (bersih > 0 ? (kembalikan ? ' [DP dikembalikan ' + bersih + ']' : ' [DP hangus ' + bersih + ']') : '');
+    if (bersih > 0 && kembalikan) {
+      catatRefund_({ ref_tipe: 'pesanan', ref_id: id, jumlah: bersih, metode: pilihan_(ctx.payload.metode || 'transfer', ['tunai', 'transfer', 'qris'], 'Metode'), ket: 'Pengembalian DP pesanan ' + id }, ctx, sekarang_());
+    }
+  }
   if (ke === 'selesai') {
     var det = baca_('Detail_Pesanan').filter(function (d) { return d.id_pesanan === id; });
     var stok = stokPerProduk_();
@@ -757,7 +769,7 @@ function aksiPesananBayar_(ctx) {
   if (!ps) throw galat_('Pesanan tidak ditemukan', 'NOT_FOUND');
   if (ps.status === 'batal' || ps.status === 'draft') throw galat_('Pesanan ' + ps.status + ' tidak bisa menerima pembayaran', 'VALIDASI');
   var total = baca_('Detail_Pesanan').filter(function (d) { return d.id_pesanan === id; }).reduce(function (s, d) { return s + Math.round(angka_(d.qty) * angka_(d.harga)); }, 0);
-  var dibayar = totalBayar_('pesanan', id);
+  var dibayar = bayarBersih_('pesanan', id);
   var jumlah = uangValid_(p.jumlah, 'Jumlah');
   if (jumlah <= 0) throw galat_('Jumlah harus lebih dari 0', 'VALIDASI');
   if (dibayar + jumlah > total) throw galat_('Melebihi sisa tagihan (' + (total - dibayar) + ')', 'VALIDASI');
@@ -980,4 +992,57 @@ function tanggalValid_(v, label) {
   var s = String(v || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw galat_(label + ' harus berformat YYYY-MM-DD', 'VALIDASI');
   return s;
+}
+
+/* =========================================================
+ * PELUNASAN PIUTANG TEMPO & PEMBATALAN TRANSAKSI KASIR
+ * ======================================================= */
+
+function aksiPenjualanBayar_(ctx) {
+  var id = wajib_(ctx.payload.id, 'Transaksi');
+  var t = cariSatu_(baca_('Penjualan'), 'id_penjualan', id);
+  if (!t) throw galat_('Transaksi tidak ditemukan', 'NOT_FOUND');
+  if (t.status === 'batal') throw galat_('Transaksi sudah dibatalkan', 'VALIDASI');
+  var sisa = angka_(t.total) - bayarBersih_('penjualan', id);
+  var jumlah = uangValid_(ctx.payload.jumlah, 'Jumlah');
+  if (jumlah <= 0 || jumlah > sisa) throw galat_('Jumlah harus 1 sampai ' + sisa, 'VALIDASI');
+  catatBayarMasuk_([{ ref_tipe: 'penjualan', ref_id: id, jenis: jumlah === sisa ? 'pelunasan' : 'cicilan', metode: pilihan_(ctx.payload.metode || 'tunai', ['tunai', 'transfer', 'qris'], 'Metode'), jumlah: jumlah,
+    sumber: 'pelunasan_pelanggan', ket: 'Pelunasan piutang ' + id }], ctx, sekarang_());
+  catatLog_(ctx.user.id_pengguna, 'penjualan.bayar', 'Penjualan', id, 'Pelunasan ' + jumlah + ', sisa ' + (sisa - jumlah), ctx.requestId);
+  return { id: id, sisa: sisa - jumlah };
+}
+
+/** Batalkan transaksi kasir: baris tidak dihapus; stok dikembalikan dan uang yang sudah diterima dicatat sebagai pengembalian. */
+function aksiPenjualanBatal_(ctx) {
+  var id = wajib_(ctx.payload.id, 'Transaksi');
+  var alasan = wajib_(ctx.payload.alasan, 'Alasan pembatalan');
+  var t = cariSatu_(baca_('Penjualan'), 'id_penjualan', id);
+  if (!t) throw galat_('Transaksi tidak ditemukan', 'NOT_FOUND');
+  if (t.status === 'batal') return { id: id, sudah: true };
+  var waktu = sekarang_();
+  var det = baca_('Detail_Penjualan').filter(function (d) { return d.id_penjualan === id; });
+  var ids = idBanyak_('Mutasi_Stok', 'id_mutasi', 'MS-', 8, det.length);
+  tambahBanyak_('Mutasi_Stok', det.map(function (d, i) { return { id_mutasi: ids[i], waktu: waktu, id_produk: d.id_produk, jenis: 'batal', qty: angka_(d.qty), nilai_hpp: Math.round(angka_(d.qty) * angka_(d.hpp_satuan)), ref_tipe: 'penjualan', ref_id: id, catatan: 'Pembatalan: ' + alasan, dibuat_oleh: ctx.user.id_pengguna }; }));
+  var masuk = baca_('Pembayaran').filter(function (b) { return b.ref_tipe === 'penjualan' && b.ref_id === id && b.arah === 'masuk' && b.status !== 'batal'; });
+  // Kembalikan per metode agar buku kas per metode tetap benar
+  var perMetode = {};
+  masuk.forEach(function (b) { perMetode[b.metode] = (perMetode[b.metode] || 0) + angka_(b.jumlah); });
+  Object.keys(perMetode).forEach(function (m) {
+    catatRefund_({ ref_tipe: 'penjualan', ref_id: id, jumlah: perMetode[m], metode: m, ket: 'Pengembalian uang ' + id + ' (dibatalkan)' }, ctx, waktu);
+  });
+  ubah_('Penjualan', 'id_penjualan', id, { status: 'batal', dibatalkan_pada: waktu, alasan_batal: alasan });
+  catatLog_(ctx.user.id_pengguna, 'penjualan.batal', 'Penjualan', id, alasan, ctx.requestId);
+  return { id: id };
+}
+
+function catatRefund_(r, ctx, waktu) {
+  var id = idBanyak_('Pembayaran', 'id_pembayaran', 'BYR-', 8, 1)[0];
+  tambah_('Pembayaran', { id_pembayaran: id, waktu: waktu, arah: 'keluar', ref_tipe: r.ref_tipe, ref_id: r.ref_id, jenis: 'refund', metode: r.metode, jumlah: r.jumlah, bukti_url: '', status: 'sah', dibuat_oleh: ctx.user.id_pengguna });
+  catatKas_({ arah: 'keluar', jumlah: r.jumlah, sumber: 'refund_pelanggan', ref_tipe: 'pembayaran', ref_id: id, metode: r.metode, keterangan: r.ket }, waktu);
+}
+
+/** Uang masuk dikurangi pengembalian untuk satu dokumen pelanggan. */
+function bayarBersih_(tipe, id) {
+  return baca_('Pembayaran').filter(function (b) { return b.ref_tipe === tipe && String(b.ref_id) === String(id) && b.status !== 'batal'; })
+    .reduce(function (s, b) { return s + (b.arah === 'keluar' ? -1 : 1) * angka_(b.jumlah); }, 0);
 }

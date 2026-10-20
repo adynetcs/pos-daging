@@ -9,6 +9,7 @@ import { Tabs, FilterChips } from '@/components/ui/FilterBar';
 import { DataTable, type Kolom } from '@/components/ui/DataTable';
 import { Badge, type NadaBadge } from '@/components/ui/StatusBadge';
 import { BarChart } from '@/components/charts/Charts';
+import { TerimaPiutangModal, type Piutang } from '@/components/bisnis/TerimaPiutang';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/FormInput';
 import { DatePicker } from '@/components/ui/DatePicker';
@@ -26,6 +27,7 @@ export const SUMBER_KAS: Record<SumberKas, { label: string; nada: NadaBadge }> =
   penjualan_eceran: { label: 'Penjualan eceran', nada: 'hijau' },
   dp_pelanggan: { label: 'DP pelanggan', nada: 'biru' },
   pelunasan_pelanggan: { label: 'Pelunasan pelanggan', nada: 'hijau' },
+  refund_pelanggan: { label: 'Pengembalian ke pelanggan', nada: 'merah' },
   dp_supplier: { label: 'Uang muka pembelian', nada: 'kuning' },
   bayar_supplier: { label: 'Bayar supplier', nada: 'brand' },
   pengeluaran: { label: 'Beban operasional', nada: 'merah' },
@@ -40,6 +42,7 @@ export default function Keuangan() {
   const [fKas, setFKas] = useState<'semua' | 'masuk' | 'keluar'>('semua');
   const [formModal, setFormModal] = useState(false);
   const [formBeban, setFormBeban] = useState(false);
+  const [terimaPiutang, setTerimaPiutang] = useState<Piutang | null>(null);
 
   const [modeP, setModeP] = useState<'bulan' | 'semua'>('bulan');
   const periode: F.Periode | undefined = modeP === 'bulan' ? { dari: awalBulan(), sampai: hariIni() } : undefined;
@@ -228,7 +231,10 @@ export default function Keuangan() {
             { key: 's', judul: 'Sumber', render: (x) => <Badge nada={x.sumber.startsWith('Kasir') ? 'kuning' : 'biru'}>{x.sumber}</Badge> },
             { key: 't', judul: 'Tanggal', render: (x) => tanggalPendek(x.tanggal) },
             { key: 'n', judul: 'Sisa tagihan', rata: 'kanan', render: (x) => <span className="num font-bold text-brand-800">{rupiah(x.nilai)}</span>, sortBy: (x) => x.nilai },
-          ]} kartuMobile={(x) => <div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{cari.pelanggan(x.pelangganId)?.nama}</p><p className="text-xs text-gray-500">{x.ref}, {x.sumber}</p></div><span className="num text-sm font-bold text-brand-800">{rupiah(x.nilai)}</span></div>} />
+            { key: 'a', judul: '', rata: 'kanan', render: (x) => <Button ukur="sm" varian="garis" onClick={() => setTerimaPiutang(x)}>Terima bayar</Button> },
+          ]} kosong={{ judul: 'Tidak ada piutang', pesan: 'Semua tagihan pelanggan sudah lunas.' }}
+            kartuMobile={(x) => <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">{cari.pelanggan(x.pelangganId)?.nama}</p><p className="text-xs text-gray-500">{x.ref}, {x.sumber}</p><p className="num text-sm font-bold text-brand-800">{rupiah(x.nilai)}</p></div><Button ukur="sm" varian="garis" onClick={() => setTerimaPiutang(x)}>Terima bayar</Button></div>} />
+          <TerimaPiutangModal piutang={terimaPiutang} onTutup={() => setTerimaPiutang(null)} />
         </Card>
       )}
 
@@ -274,6 +280,7 @@ export function LabaRugi({ periode }: { periode?: F.Periode }) {
         {baris('Pesanan partai selesai', lr.omzetPartai, { inden: true })}
         {baris('Harga pokok penjualan (HPP)', lr.hpp, { minus: true })}
         {baris('Laba kotor', lr.labaKotor, { tebal: true, garis: true })}
+        {lr.pendapatanLain > 0 && baris('Pendapatan lain-lain (DP pesanan batal yang hangus)', lr.pendapatanLain)}
         {baris('Beban operasional', lr.beban, { tebal: true })}
         {lr.bebanPerKategori.map((k) => <div key={k.kategori}>{baris(k.kategori, k.nilai, { inden: true, minus: true })}</div>)}
         <div className={`mx-5 mt-2 flex justify-between rounded-xl px-4 py-3 text-base font-extrabold ${lr.labaBersih >= 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>

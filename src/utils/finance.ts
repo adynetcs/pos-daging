@@ -36,7 +36,8 @@ export const tunaiTrx = (t: TransaksiEceran) => totalTrx(t) - tempoTrx(t);
 /* ---------- Pesanan partai ---------- */
 export const totalPesanan = (p: PesananPartai) => totalItems(p.items);
 export const dpPesanan = (p: PesananPartai, persen?: number) => targetDP(totalPesanan(p), p.dpPersen !== undefined ? p.dpPersen / 100 : persen);
-export const dibayarPesanan = (p: PesananPartai) => jumlah(p.pembayaran, (b) => b.jumlah);
+/** Uang bersih dari pelanggan: pembayaran dikurangi pengembalian. */
+export const dibayarPesanan = (p: PesananPartai) => jumlah(p.pembayaran, (b) => (b.jenis === 'refund' ? -b.jumlah : b.jumlah));
 export const sisaPesanan = (p: PesananPartai) =>
   p.status === 'batal' ? 0 : Math.max(0, totalPesanan(p) - dibayarPesanan(p));
 export const dpTerpenuhi = (p: PesananPartai) => dibayarPesanan(p) >= dpPesanan(p);
@@ -71,17 +72,32 @@ export function bukuKas(d: DataUsaha): BarisKas[] {
       masuk: m.jenis === 'penarikan' ? 0 : m.jumlah, keluar: m.jenis === 'penarikan' ? m.jumlah : 0,
     });
   }
-  // Penjualan eceran digabung per hari agar buku kas tetap ringkas
+  // Penjualan eceran digabung per hari (tanggal uang diterima) agar buku kas tetap ringkas.
+  // Pelunasan piutang tempo dicatat terpisah pada hari pelunasannya.
   const perHari = new Map<string, number>();
+  const pelunasan = new Map<string, number>();
   for (const t of d.transaksi) {
-    const k = t.tanggal.slice(0, 10);
-    perHari.set(k, (perHari.get(k) ?? 0) + tunaiTrx(t));
+    for (const b of t.pembayaran) {
+      if (b.metode === 'tempo') continue;
+      const waktu = b.tanggal ?? t.tanggal;
+      const k = waktu.slice(0, 10);
+      // Pembayaran saat transaksi tercatat pada waktu yang sama persis; selain itu = pelunasan kemudian
+      const peta = waktu === t.tanggal ? perHari : pelunasan;
+      peta.set(k, (peta.get(k) ?? 0) + b.jumlah);
+    }
   }
   for (const [tgl, v] of perHari) {
     baris.push({ id: `KS-${tgl}`, tanggal: tgl, sumber: 'penjualan_eceran', referensi: 'Rekap kasir', keterangan: 'Penjualan eceran (tunai, transfer, QRIS)', masuk: v, keluar: 0 });
   }
+  for (const [tgl, v] of pelunasan) {
+    baris.push({ id: `KP-${tgl}`, tanggal: tgl, sumber: 'pelunasan_pelanggan', referensi: 'Rekap kasir', keterangan: 'Pelunasan piutang penjualan tempo', masuk: v, keluar: 0 });
+  }
   for (const p of d.pesanan) {
     for (const b of p.pembayaran) {
+      if (b.jenis === 'refund') {
+        baris.push({ id: b.id, tanggal: b.tanggal, referensi: p.id, sumber: 'refund_pelanggan', keterangan: 'Pengembalian DP pesanan batal', masuk: 0, keluar: b.jumlah });
+        continue;
+      }
       baris.push({
         id: b.id, tanggal: b.tanggal, referensi: p.id,
         sumber: b.jenis === 'dp' ? 'dp_pelanggan' : 'pelunasan_pelanggan',
@@ -143,6 +159,8 @@ export function labaRugi(d: DataUsaha, p?: Periode) {
   const omzet = omzetEceran + omzetPartai;
   const hpp = jumlah(rows, (r) => r.hpp);
   const labaKotor = omzet - hpp;
+  // DP pesanan batal yang tidak dikembalikan (hangus) = pendapatan lain-lain
+  const dpHangus = jumlah(d.pesanan.filter((ps) => ps.status === 'batal' && dalam(ps.dibatalkanPada ?? ps.tanggal, p)), (ps) => Math.max(0, dibayarPesanan(ps)));
   const bebanList = d.pengeluaran.filter((e) => dalam(e.tanggal, p));
   const beban = jumlah(bebanList, (e) => e.jumlah);
   const perKategori = new Map<string, number>();
@@ -150,7 +168,8 @@ export function labaRugi(d: DataUsaha, p?: Periode) {
   return {
     omzetEceran, omzetPartai, omzet, hpp, labaKotor, beban,
     bebanPerKategori: [...perKategori].map(([kategori, nilai]) => ({ kategori, nilai })),
-    labaBersih: labaKotor - beban,
+    pendapatanLain: dpHangus,
+    labaBersih: labaKotor + dpHangus - beban,
     marginKotor: omzet ? labaKotor / omzet : 0,
   };
 }

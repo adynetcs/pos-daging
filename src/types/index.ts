@@ -59,7 +59,8 @@ export interface TransaksiEceran {
   pelangganId: string;
   items: ItemTransaksi[];
   diskon: number;
-  pembayaran: { metode: MetodeBayar; jumlah: number }[];
+  /** tanggal = waktu uang diterima (pelunasan tempo bisa berbeda hari dengan transaksi) */
+  pembayaran: { metode: MetodeBayar; jumlah: number; tanggal?: string }[];
 }
 
 export type StatusPesanan =
@@ -68,7 +69,7 @@ export type StatusPesanan =
 export interface PembayaranPesanan {
   id: string;
   tanggal: string;
-  jenis: 'dp' | 'pelunasan' | 'cicilan';
+  jenis: 'dp' | 'pelunasan' | 'cicilan' | 'refund';
   metode: Exclude<MetodeBayar, 'tempo'>;
   jumlah: number;
   bukti?: string;
@@ -88,6 +89,7 @@ export interface PesananPartai {
   dpPersen?: number;
   /** Tanggal barang benar-benar diserahkan (status selesai). Dasar pengakuan omzet. */
   selesaiPada?: string;
+  dibatalkanPada?: string;
 }
 
 export interface ItemPembelian {
@@ -117,7 +119,7 @@ export interface Pembelian {
   statusPenerimaan: StatusPenerimaan;
 }
 
-export type JenisMutasi = 'masuk' | 'terjual' | 'rusak' | 'susut' | 'koreksi';
+export type JenisMutasi = 'masuk' | 'terjual' | 'rusak' | 'susut' | 'koreksi' | 'batal';
 export interface MutasiStok {
   id: string;
   tanggal: string;
@@ -157,7 +159,7 @@ export interface MutasiModal {
 /** Baris buku kas — setiap uang masuk/keluar tercatat tepat satu kali. */
 export type SumberKas =
   | 'modal' | 'penarikan_modal' | 'penjualan_eceran' | 'dp_pelanggan'
-  | 'pelunasan_pelanggan' | 'dp_supplier' | 'bayar_supplier' | 'pengeluaran';
+  | 'pelunasan_pelanggan' | 'refund_pelanggan' | 'dp_supplier' | 'bayar_supplier' | 'pengeluaran';
 
 export interface BarisKas {
   id: string;

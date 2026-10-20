@@ -29,6 +29,7 @@ export const MUTASI: Record<JenisMutasi, { label: string; nada: NadaBadge; warna
   rusak: { label: 'Rusak', nada: 'merah', warna: 'bg-red-500' },
   susut: { label: 'Susut berat', nada: 'kuning', warna: 'bg-amber-500' },
   koreksi: { label: 'Koreksi', nada: 'abu', warna: 'bg-gray-400' },
+  batal: { label: 'Kembali (transaksi batal)', nada: 'ungu', warna: 'bg-violet-400' },
 };
 
 export default function Stok() {
@@ -60,7 +61,7 @@ export default function Stok() {
     const per = (j: JenisMutasi) => mutasiStok.filter((m) => m.jenis === j && isKg(m.produkId)).reduce((s, m) => s + Math.abs(m.qty), 0);
     return [
       { j: 'masuk' as const, v: masuk }, { j: 'terjual' as const, v: terjual },
-      { j: 'rusak' as const, v: per('rusak') }, { j: 'susut' as const, v: per('susut') }, { j: 'koreksi' as const, v: per('koreksi') },
+      { j: 'rusak' as const, v: per('rusak') }, { j: 'susut' as const, v: per('susut') }, { j: 'koreksi' as const, v: per('koreksi') }, { j: 'batal' as const, v: per('batal') },
     ];
   }, [d, pembelian, mutasiStok, cari]);
   const maxGerak = Math.max(...gerak.map((g) => g.v));
@@ -198,7 +199,7 @@ function PenyesuaianModal({ onTutup, onSimpan }: { onTutup: () => void; onSimpan
   const [pid, setPid] = useState(() => produk.find((x) => x.aktif)?.id ?? '');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
-  const [jenis, setJenis] = useState<Exclude<JenisMutasi, 'masuk' | 'terjual'>>('susut');
+  const [jenis, setJenis] = useState<'rusak' | 'susut' | 'koreksi'>('susut');
   const [arah, setArah] = useState<1 | -1>(-1);
   const [qty, setQty] = useState('');
   const [catatan, setCatatan] = useState('');

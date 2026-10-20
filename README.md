@@ -72,11 +72,20 @@ Diterapkan di `utils/finance.ts`:
 4. Ganti pemakaian `useState(D.xxxAwal)` di `DataContext.tsx` dengan pemuatan dari `api.*`.
 5. Jangan menaruh kredensial rahasia di frontend; lakukan otorisasi di sisi GAS.
 
+## Pembatalan, pengembalian, dan piutang
+
+- **Batalkan transaksi kasir** (pemilik/admin): Kasir → Keranjang → *Riwayat* → *Batalkan* (alasan wajib).
+  Baris penjualan tetap ada dengan status `batal`; stok dikembalikan lewat mutasi `batal`; uang yang sudah diterima
+  dicatat sebagai pengembalian (`Pembayaran` jenis `refund` + `Kas_Mutasi` `refund_pelanggan`). Di aplikasi, transaksi batal
+  tidak dihitung sebagai omzet maupun kas (bersih nol); jejak lengkapnya ada di sheet.
+- **Pelunasan piutang**: Keuangan → Piutang → *Terima bayar*, atau dari detail pelanggan. Boleh dicicil; kas bertambah
+  pada tanggal pelunasan.
+- **Batalkan pesanan partai setelah DP**: pilih *Kembalikan ke pelanggan* (kas berkurang) atau *DP hangus*
+  (dicatat sebagai pendapatan lain-lain di laba rugi). Keputusan tersimpan di kolom `alasan_batal`.
+
 ## Batasan yang perlu diketahui
 
-- Pembatalan transaksi kasir dan retur belum ada di tampilan (struktur sheet sudah mendukung status batal).
-- Pesanan partai yang dibatalkan setelah DP: pengembalian dana dicatat manual.
-- Pelunasan piutang penjualan tempo belum ada tombolnya (piutang tetap terlihat di Keuangan → Piutang).
+- Retur sebagian (mengembalikan sebagian item dari satu transaksi) belum ada; gunakan pembatalan transaksi lalu input ulang.
 - Bukti pembayaran berupa link/no. referensi, bukan unggah file.
 - Gambar produk berupa ilustrasi per kategori.
 

@@ -25,9 +25,9 @@ interface Snapshot {
   produk: ProdukSheet[];
   pelanggan: { id: string; nama: string; telepon: string; alamat: string; jenis: 'eceran' | 'partai' }[];
   supplier: Supplier[];
-  penjualan: { id: string; waktu: string; id_pelanggan: string; diskon: number; total: number; items: { id_produk: string; qty: number; harga: number; hpp: number }[]; bayar: { metode: Exclude<MetodeBayar, 'tempo'>; jumlah: number }[] }[];
-  pesanan: { id: string; tanggal: string; id_pelanggan: string; jadwal_kirim: string; alamat_kirim: string; dp_persen: number; status: StatusPesanan; catatan: string; selesai_pada: string;
-    items: { id_produk: string; qty: number; harga: number; hpp: number }[]; bayar: { id: string; waktu: string; jenis: 'dp' | 'cicilan' | 'pelunasan'; metode: 'tunai' | 'transfer' | 'qris'; jumlah: number; bukti: string }[] }[];
+  penjualan: { id: string; waktu: string; id_pelanggan: string; diskon: number; total: number; items: { id_produk: string; qty: number; harga: number; hpp: number }[]; bayar: { metode: Exclude<MetodeBayar, 'tempo'>; jumlah: number; waktu: string }[] }[];
+  pesanan: { id: string; tanggal: string; id_pelanggan: string; jadwal_kirim: string; alamat_kirim: string; dp_persen: number; status: StatusPesanan; catatan: string; selesai_pada: string; dibatalkan_pada: string;
+    items: { id_produk: string; qty: number; harga: number; hpp: number }[]; bayar: { id: string; waktu: string; arah: 'masuk' | 'keluar'; jenis: 'dp' | 'cicilan' | 'pelunasan' | 'refund'; metode: 'tunai' | 'transfer' | 'qris'; jumlah: number; bukti: string }[] }[];
   pembelian: { id: string; tanggal: string; id_supplier: string; status: 'dipesan' | 'sebagian' | 'diterima'; biaya_tambahan: number; ket_biaya: string;
     items: { id_produk: string; qty_pesan: number; qty_terima: number; harga: number }[]; bayar: { id: string; waktu: string; jenis: 'dp' | 'pelunasan' | 'lunas'; jumlah: number }[] }[];
   mutasi: { id: string; waktu: string; id_produk: string; id_batch: string; jenis: MutasiStok['jenis'] | 'retur' | 'batal'; qty: number; ref: string; catatan: string }[];
@@ -79,16 +79,16 @@ function petakan(s: Snapshot) {
   const produk = s.produk.map(keProduk);
   const transaksi: TransaksiEceran[] = s.penjualan.map((t) => {
     const dibayar = t.bayar.reduce((a, b) => a + b.jumlah, 0);
-    const pembayaran: TransaksiEceran['pembayaran'] = t.bayar.map((b) => ({ metode: b.metode, jumlah: b.jumlah }));
+    const pembayaran: TransaksiEceran['pembayaran'] = t.bayar.map((b) => ({ metode: b.metode, jumlah: b.jumlah, tanggal: iso(b.waktu) }));
     if (dibayar < t.total) pembayaran.push({ metode: 'tempo', jumlah: t.total - dibayar });
     return { id: t.id, tanggal: iso(t.waktu), pelangganId: t.id_pelanggan, diskon: t.diskon, pembayaran,
       items: t.items.map((i) => ({ produkId: i.id_produk, qty: i.qty, harga: i.harga, hpp: i.hpp })) };
   });
   const pesanan: PesananPartai[] = s.pesanan.map((p) => ({
     id: p.id, tanggal: p.tanggal, pelangganId: p.id_pelanggan, jadwalKirim: p.jadwal_kirim, alamatKirim: p.alamat_kirim || '-',
-    catatan: p.catatan || undefined, status: p.status, dpPersen: p.dp_persen || undefined, selesaiPada: p.selesai_pada || undefined,
+    catatan: p.catatan || undefined, status: p.status, dpPersen: p.dp_persen || undefined, selesaiPada: p.selesai_pada || undefined, dibatalkanPada: p.dibatalkan_pada || undefined,
     items: p.items.map((i) => ({ produkId: i.id_produk, qty: i.qty, harga: i.harga, hpp: i.hpp })),
-    pembayaran: p.bayar.map((b) => ({ id: b.id, tanggal: b.waktu.slice(0, 10), jenis: b.jenis, metode: b.metode, jumlah: b.jumlah, bukti: b.bukti || undefined })),
+    pembayaran: p.bayar.map((b) => ({ id: b.id, tanggal: b.waktu.slice(0, 10), jenis: b.arah === 'keluar' ? 'refund' : b.jenis, metode: b.metode, jumlah: b.jumlah, bukti: b.bukti || undefined })),
   }));
   const pembelian: Pembelian[] = s.pembelian.map((b) => ({
     id: b.id, tanggal: b.tanggal, supplierId: b.id_supplier, statusPenerimaan: b.status, biayaTambahan: b.biaya_tambahan,
@@ -97,7 +97,7 @@ function petakan(s: Snapshot) {
     pembayaran: b.bayar.map((x) => ({ id: x.id, tanggal: x.waktu.slice(0, 10), jenis: x.jenis, jumlah: x.jumlah })),
   }));
   const mutasiStok: MutasiStok[] = s.mutasi
-    .map((m) => ({ id: m.id, tanggal: iso(m.waktu), produkId: m.id_produk, jenis: (m.jenis === 'retur' || m.jenis === 'batal' ? 'koreksi' : m.jenis) as MutasiStok['jenis'], qty: m.qty, referensi: m.ref, catatan: m.catatan || undefined }))
+    .map((m) => ({ id: m.id, tanggal: iso(m.waktu), produkId: m.id_produk, jenis: (m.jenis === 'retur' ? 'koreksi' : m.jenis) as MutasiStok['jenis'], qty: m.qty, referensi: m.ref, catatan: m.catatan || undefined }))
     .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id));
   const stok = Object.fromEntries(produk.map((p) => [p.id, p.stok]));
   return {
@@ -141,7 +141,9 @@ interface Store extends DataUsaha, Omit<Data, 'produk' | 'transaksi' | 'pesanan'
   simpanPelanggan: (p: Omit<Pelanggan, 'id'> & { id?: string }) => Promise<string>;
   simpanSupplier: (p: Omit<Supplier, 'id'> & { id?: string }) => Promise<void>;
   buatPesanan: (p: InputPesanan) => Promise<string>;
-  ubahStatusPesanan: (id: string, status: StatusPesanan) => Promise<void>;
+  ubahStatusPesanan: (id: string, status: StatusPesanan, opsi?: { refund?: boolean; alasan?: string; metode?: 'tunai' | 'transfer' | 'qris' }) => Promise<void>;
+  bayarPenjualan: (id: string, jumlah: number, metode: 'tunai' | 'transfer' | 'qris') => Promise<void>;
+  batalPenjualan: (id: string, alasan: string) => Promise<void>;
   bayarPesanan: (id: string, b: { jenis: 'dp' | 'cicilan' | 'pelunasan'; metode: 'tunai' | 'transfer' | 'qris'; jumlah: number; bukti?: string }) => Promise<StatusPesanan>;
   buatPembelian: (p: InputPembelian) => Promise<string>;
   terimaPembelian: (id: string, qty: Record<string, number>) => Promise<void>;
@@ -203,7 +205,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     simpanPelanggan: async (p) => (await tulis<{ id: string }>('pelanggan.simpan', p)).id,
     simpanSupplier: async (p) => { await tulis('supplier.simpan', p); },
     buatPesanan: async (p) => (await tulis<{ id: string }>('pesanan.simpan', p)).id,
-    ubahStatusPesanan: async (id, status) => { await tulis('pesanan.status', { id, status }); },
+    ubahStatusPesanan: async (id, status, opsi = {}) => { await tulis('pesanan.status', { id, status, ...opsi }); },
+    bayarPenjualan: async (id, jumlah, metode) => { await tulis('penjualan.bayar', { id, jumlah, metode }); },
+    batalPenjualan: async (id, alasan) => { await tulis('penjualan.batal', { id, alasan }); },
     bayarPesanan: async (id, b) => (await tulis<{ status: StatusPesanan }>('pesanan.bayar', { id, ...b })).status,
     buatPembelian: async (p) => (await tulis<{ id: string }>('pembelian.simpan', p)).id,
     terimaPembelian: async (id, qty) => { await tulis('pembelian.terima', { id, qty }); },

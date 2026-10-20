@@ -14,7 +14,7 @@ const AKSI_DIIZINKAN = new Set([
   'data.semua', 'data.ringkasan',
   'pengguna.list', 'pengguna.simpan', 'pengguna.aturPin', 'pengaturan.simpan',
   'produk.list', 'produk.simpan', 'pelanggan.simpan', 'supplier.simpan',
-  'penjualan.simpan',
+  'penjualan.simpan', 'penjualan.bayar', 'penjualan.batal',
   'pesanan.simpan', 'pesanan.status', 'pesanan.bayar',
   'pembelian.simpan', 'pembelian.terima', 'pembelian.bayar',
   'stok.sesuaikan', 'modal.simpan', 'pengeluaran.simpan',

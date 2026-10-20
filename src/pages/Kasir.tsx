@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/Modal';
 import { TimbangModal } from './kasir/TimbangModal';
 import { BayarModal, type HasilBayar } from './kasir/BayarModal';
 import { StrukModal } from './kasir/Struk';
+import { RiwayatKasir } from './kasir/Riwayat';
 import type { ItemTransaksi, Kategori, Produk, TransaksiEceran } from '@/types';
 import { bulatkanBerat, nilaiBaris, totalItems } from '@/utils/calc';
 import { angka, berat, qtySatuan, rupiah } from '@/utils/format';
@@ -37,6 +38,7 @@ export default function Kasir() {
   const [sheet, setSheet] = useState(false);
   const [tertahan, setTertahan] = useState<Tertahan[]>([]);
   const [daftarTahan, setDaftarTahan] = useState(false);
+  const [riwayat, setRiwayat] = useState(false);
 
   const aktif = produk.filter((p) => p.aktif);
   const daftar = useMemo(() => {
@@ -108,9 +110,10 @@ export default function Kasir() {
 
   const panelKeranjang = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
+      <div className="flex items-center justify-between gap-2 pb-3 pl-4 pr-12 pt-4 lg:pr-4">
         <h2 className="flex items-center gap-2 text-[15px] font-bold">Keranjang <span className="num rounded-full bg-gray-100 px-2 text-xs text-gray-600">{jumlahItem}</span></h2>
         <div className="flex items-center gap-1">
+          <button onClick={() => { setSheet(false); setRiwayat(true); }} className="rounded-lg px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100">Riwayat</button>
           {tertahan.length > 0 && <button onClick={() => setDaftarTahan(true)} className="rounded-lg px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100">Tertahan ({tertahan.length})</button>}
           {jumlahItem > 0 && <button onClick={reset} className="rounded-lg px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50">Kosongkan</button>}
         </div>
@@ -268,6 +271,7 @@ export default function Kasir() {
           }} />
       )}
       <BayarModal buka={bayar} total={total} bolehTempo={pelangganId !== 'PLG-0000'} metodeAktif={pengaturan.metodeAktif} rekening={pengaturan.rekening} memproses={memproses} onTutup={() => { if (!memproses) setBayar(false); }} onBayar={(h) => { void selesaiBayar(h); }} />
+      <RiwayatKasir buka={riwayat} onTutup={() => setRiwayat(false)} />
       <StrukModal trx={struk?.trx ?? null} diterima={struk?.h.diterima} kembalian={struk?.h.kembalian} onTutup={() => setStruk(null)} />
       <Modal buka={daftarTahan} onTutup={() => setDaftarTahan(false)} judul="Keranjang tertahan" sub="Disimpan sementara di perangkat ini" lebar="sm">
         {tertahan.length === 0 ? <EmptyState ikon={Archive} judul="Tidak ada keranjang tertahan" /> : (
