@@ -5,7 +5,7 @@ import { useData, useLookup } from '@/context/DataContext';
 import type { TransaksiEceran } from '@/types';
 import { nilaiBaris } from '@/utils/calc';
 import { qtySatuan, rupiah, tanggalJam } from '@/utils/format';
-import { subtotalTrx, totalTrx } from '@/utils/finance';
+import { returTrx, subtotalTrx, totalTrx } from '@/utils/finance';
 
 const labelMetode = (m: string) => (m === 'qris' ? 'QRIS' : m.charAt(0).toUpperCase() + m.slice(1));
 
@@ -38,6 +38,7 @@ export function StrukKertas({ trx, diterima, kembalian }: { trx: TransaksiEceran
       {garis}
       <div className="flex justify-between"><span>Subtotal</span><span>{rupiah(subtotalTrx(trx))}</span></div>
       {trx.diskon > 0 && <div className="flex justify-between"><span>Diskon</span><span>-{rupiah(trx.diskon)}</span></div>}
+      {returTrx(trx) > 0 && <div className="flex justify-between"><span>Retur</span><span>-{rupiah(returTrx(trx))}</span></div>}
       <div className="flex justify-between text-sm font-bold"><span>TOTAL</span><span>{rupiah(totalTrx(trx))}</span></div>
       {garis}
       {trx.pembayaran.map((b) => <div key={b.metode} className="flex justify-between"><span>{labelMetode(b.metode)}</span><span>{rupiah(b.metode === 'tunai' && diterima ? diterima : b.jumlah)}</span></div>)}

@@ -10,8 +10,9 @@ import { useData, useLookup, pesanGalat } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { StrukModal } from './Struk';
+import { ReturModal } from './ReturModal';
 import type { TransaksiEceran } from '@/types';
-import { tempoTrx, totalTrx } from '@/utils/finance';
+import { returTrx, tempoTrx, totalTrx } from '@/utils/finance';
 import { hariIni } from '@/utils/waktu';
 import { jam, rupiah } from '@/utils/format';
 
@@ -27,6 +28,7 @@ export function RiwayatKasir({ buka, onTutup }: { buka: boolean; onTutup: () => 
   const [tgl, setTgl] = useState(hariIni());
   const [struk, setStruk] = useState<TransaksiEceran | null>(null);
   const [batal, setBatal] = useState<TransaksiEceran | null>(null);
+  const [retur, setRetur] = useState<TransaksiEceran | null>(null);
   const [alasan, setAlasan] = useState('');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
@@ -47,7 +49,7 @@ export function RiwayatKasir({ buka, onTutup }: { buka: boolean; onTutup: () => 
 
   return (
     <>
-      <Modal buka={buka && !struk && !batal} onTutup={onTutup} judul="Riwayat transaksi kasir" sub={`${daftar.length} transaksi, total ${rupiah(total)}`} lebar="md">
+      <Modal buka={buka && !struk && !batal && !retur} onTutup={onTutup} judul="Riwayat transaksi kasir" sub={`${daftar.length} transaksi, total ${rupiah(total)}`} lebar="md">
         <div className="mb-3 sm:w-60"><DatePicker label="Tanggal" value={tgl} max={hariIni()} onChange={setTgl} /></div>
         {daftar.length === 0 ? <EmptyState ikon={Receipt} judul="Belum ada transaksi di tanggal ini" /> : (
           <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
@@ -62,8 +64,10 @@ export function RiwayatKasir({ buka, onTutup }: { buka: boolean; onTutup: () => 
                   </div>
                   <div className="flex items-center gap-2">
                     {tempo > 0 && <Badge nada="kuning">Piutang {rupiah(tempo)}</Badge>}
+                    {returTrx(t) > 0 && <Badge nada="ungu">Retur {rupiah(returTrx(t))}</Badge>}
                     <span className="num text-sm font-bold">{rupiah(totalTrx(t))}</span>
                     <Button ukur="sm" varian="garis" onClick={() => setStruk(t)} aria-label={`Struk ${t.id}`}>Struk</Button>
+                    {bolehBatal && <Button ukur="sm" varian="garis" onClick={() => setRetur(t)} aria-label={`Retur ${t.id}`}>Retur</Button>}
                     {bolehBatal && <Button ukur="sm" varian="hantu" className="text-red-600 hover:bg-red-50" onClick={() => { setBatal(t); setAlasan(''); setGalat(''); }} aria-label={`Batalkan ${t.id}`}>Batalkan</Button>}
                   </div>
                 </li>
@@ -71,9 +75,10 @@ export function RiwayatKasir({ buka, onTutup }: { buka: boolean; onTutup: () => 
             })}
           </ul>
         )}
-        {!bolehBatal && <p className="mt-3 text-xs text-gray-500">Pembatalan transaksi hanya bisa dilakukan pemilik atau admin.</p>}
+        {!bolehBatal && <p className="mt-3 text-xs text-gray-500">Retur dan pembatalan transaksi hanya bisa dilakukan pemilik atau admin.</p>}
       </Modal>
       <StrukModal trx={struk} cetakUlang onTutup={() => setStruk(null)} />
+      <ReturModal trx={retur ? transaksi.find((x) => x.id === retur.id) ?? null : null} onTutup={() => setRetur(null)} />
       <Modal buka={!!batal} onTutup={() => !proses && setBatal(null)} judul={`Batalkan ${batal?.id ?? ''}?`} sub="Riwayat tetap tersimpan dengan status batal" lebar="sm"
         footer={<><Button varian="garis" onClick={() => setBatal(null)} disabled={proses}>Kembali</Button><Button varian="bahaya" ikon={<Ban className="h-4 w-4" />} disabled={!alasan.trim() || proses} onClick={() => void konfirmasiBatal()}>{proses ? 'Membatalkan…' : 'Ya, batalkan'}</Button></>}>
         {batal && (

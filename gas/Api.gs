@@ -91,6 +91,7 @@ var HANDLER = {
   'penjualan.simpan': { peran: SEMUA, tulis: true, fn: aksiPenjualanSimpan_ },
   'penjualan.bayar': { peran: SEMUA, tulis: true, fn: aksiPenjualanBayar_ },
   'penjualan.batal': { peran: PENGELOLA, tulis: true, fn: aksiPenjualanBatal_ },
+  'penjualan.retur': { peran: PENGELOLA, tulis: true, fn: aksiPenjualanRetur_ },
 
   'pesanan.simpan': { peran: SEMUA, tulis: true, fn: aksiPesananSimpan_ },
   'pesanan.status': { peran: SEMUA, tulis: true, fn: aksiPesananStatus_ },
@@ -514,6 +515,7 @@ function aksiSemua_(ctx) {
   var kelompok = function (rows, kunci) { var m = {}; rows.forEach(function (r) { (m[r[kunci]] = m[r[kunci]] || []).push(r); }); return m; };
 
   var dPj = kelompok(baca_('Detail_Penjualan'), 'id_penjualan');
+  var rPj = kelompok(baca_('Retur'), 'id_penjualan');
   var dPs = kelompok(baca_('Detail_Pesanan'), 'id_pesanan');
   var dPb = kelompok(baca_('Detail_Pembelian'), 'id_pembelian');
 
@@ -521,7 +523,9 @@ function aksiSemua_(ctx) {
     return {
       id: t.id_penjualan, waktu: t.waktu, id_pelanggan: t.id_pelanggan, diskon: angka_(t.diskon), total: angka_(t.total),
       items: (dPj[t.id_penjualan] || []).map(function (d) { return { id_produk: d.id_produk, qty: angka_(d.qty), harga: angka_(d.harga), hpp: angka_(d.hpp_satuan) }; }),
-      bayar: bayarPer('penjualan', t.id_penjualan).filter(function (b) { return b.arah === 'masuk'; }).map(function (b) { return { metode: b.metode, jumlah: angka_(b.jumlah), waktu: b.waktu }; })
+      bayar: bayarPer('penjualan', t.id_penjualan).filter(function (b) { return b.arah === 'masuk'; }).map(function (b) { return { metode: b.metode, jumlah: angka_(b.jumlah), waktu: b.waktu }; }),
+      refund: bayarPer('penjualan', t.id_penjualan).filter(function (b) { return b.arah === 'keluar'; }).map(function (b) { return { metode: b.metode, jumlah: angka_(b.jumlah), waktu: b.waktu }; }),
+      retur: (rPj[t.id_penjualan] || []).map(function (r) { return { id_produk: r.id_produk, qty: angka_(r.qty), nilai: angka_(r.nilai), hpp: angka_(r.hpp_satuan), waktu: r.waktu, kembali_stok: bool_(r.kembali_stok) }; })
     };
   });
 
@@ -1003,9 +1007,9 @@ function aksiPenjualanBayar_(ctx) {
   var t = cariSatu_(baca_('Penjualan'), 'id_penjualan', id);
   if (!t) throw galat_('Transaksi tidak ditemukan', 'NOT_FOUND');
   if (t.status === 'batal') throw galat_('Transaksi sudah dibatalkan', 'VALIDASI');
-  var sisa = angka_(t.total) - bayarBersih_('penjualan', id);
+  var sisa = angka_(t.total) - nilaiRetur_(id) - bayarBersih_('penjualan', id);
   var jumlah = uangValid_(ctx.payload.jumlah, 'Jumlah');
-  if (jumlah <= 0 || jumlah > sisa) throw galat_('Jumlah harus 1 sampai ' + sisa, 'VALIDASI');
+  if (jumlah <= 0 || jumlah > sisa) throw galat_(sisa <= 0 ? 'Transaksi ini tidak punya piutang' : 'Jumlah harus 1 sampai ' + sisa, 'VALIDASI');
   catatBayarMasuk_([{ ref_tipe: 'penjualan', ref_id: id, jenis: jumlah === sisa ? 'pelunasan' : 'cicilan', metode: pilihan_(ctx.payload.metode || 'tunai', ['tunai', 'transfer', 'qris'], 'Metode'), jumlah: jumlah,
     sumber: 'pelunasan_pelanggan', ket: 'Pelunasan piutang ' + id }], ctx, sekarang_());
   catatLog_(ctx.user.id_pengguna, 'penjualan.bayar', 'Penjualan', id, 'Pelunasan ' + jumlah + ', sisa ' + (sisa - jumlah), ctx.requestId);
@@ -1020,15 +1024,20 @@ function aksiPenjualanBatal_(ctx) {
   if (!t) throw galat_('Transaksi tidak ditemukan', 'NOT_FOUND');
   if (t.status === 'batal') return { id: id, sudah: true };
   var waktu = sekarang_();
-  var det = baca_('Detail_Penjualan').filter(function (d) { return d.id_penjualan === id; });
+  var sudahRetur = qtyRetur_(id);
+  var det = baca_('Detail_Penjualan').filter(function (d) { return d.id_penjualan === id; })
+    .map(function (d) { return { d: d, q: bulat3_(angka_(d.qty) - (sudahRetur[d.id_produk] || 0)) }; }).filter(function (x) { return x.q > 0; });
   var ids = idBanyak_('Mutasi_Stok', 'id_mutasi', 'MS-', 8, det.length);
-  tambahBanyak_('Mutasi_Stok', det.map(function (d, i) { return { id_mutasi: ids[i], waktu: waktu, id_produk: d.id_produk, jenis: 'batal', qty: angka_(d.qty), nilai_hpp: Math.round(angka_(d.qty) * angka_(d.hpp_satuan)), ref_tipe: 'penjualan', ref_id: id, catatan: 'Pembatalan: ' + alasan, dibuat_oleh: ctx.user.id_pengguna }; }));
-  var masuk = baca_('Pembayaran').filter(function (b) { return b.ref_tipe === 'penjualan' && b.ref_id === id && b.arah === 'masuk' && b.status !== 'batal'; });
-  // Kembalikan per metode agar buku kas per metode tetap benar
+  tambahBanyak_('Mutasi_Stok', det.map(function (x, i) { return { id_mutasi: ids[i], waktu: waktu, id_produk: x.d.id_produk, jenis: 'batal', qty: x.q, nilai_hpp: Math.round(x.q * angka_(x.d.hpp_satuan)), ref_tipe: 'penjualan', ref_id: id, catatan: 'Pembatalan: ' + alasan, dibuat_oleh: ctx.user.id_pengguna }; }));
+  // Kembalikan uang bersih (setelah pengembalian retur sebelumnya), per metode agar buku kas per metode tetap benar
   var perMetode = {};
-  masuk.forEach(function (b) { perMetode[b.metode] = (perMetode[b.metode] || 0) + angka_(b.jumlah); });
+  baca_('Pembayaran').filter(function (b) { return b.ref_tipe === 'penjualan' && b.ref_id === id && b.status !== 'batal'; })
+    .forEach(function (b) { perMetode[b.metode] = (perMetode[b.metode] || 0) + (b.arah === 'keluar' ? -1 : 1) * angka_(b.jumlah); });
+  // Total yang dikembalikan tidak boleh melebihi uang bersih yang diterima
+  var sisaKembali = Object.keys(perMetode).reduce(function (x, m) { return x + perMetode[m]; }, 0);
   Object.keys(perMetode).forEach(function (m) {
-    catatRefund_({ ref_tipe: 'penjualan', ref_id: id, jumlah: perMetode[m], metode: m, ket: 'Pengembalian uang ' + id + ' (dibatalkan)' }, ctx, waktu);
+    var j = Math.min(perMetode[m], sisaKembali);
+    if (j > 0) { catatRefund_({ ref_tipe: 'penjualan', ref_id: id, jumlah: j, metode: m, ket: 'Pengembalian uang ' + id + ' (dibatalkan)' }, ctx, waktu); sisaKembali -= j; }
   });
   ubah_('Penjualan', 'id_penjualan', id, { status: 'batal', dibatalkan_pada: waktu, alasan_batal: alasan });
   catatLog_(ctx.user.id_pengguna, 'penjualan.batal', 'Penjualan', id, alasan, ctx.requestId);
@@ -1045,4 +1054,63 @@ function catatRefund_(r, ctx, waktu) {
 function bayarBersih_(tipe, id) {
   return baca_('Pembayaran').filter(function (b) { return b.ref_tipe === tipe && String(b.ref_id) === String(id) && b.status !== 'batal'; })
     .reduce(function (s, b) { return s + (b.arah === 'keluar' ? -1 : 1) * angka_(b.jumlah); }, 0);
+}
+
+/* =========================================================
+ * RETUR SEBAGIAN TRANSAKSI KASIR
+ * Nilai retur = qty × harga × (1 − diskon/subtotal), dibulatkan.
+ * Mengurangi piutang lebih dulu; sisanya dikembalikan sebagai uang.
+ * Barang layak jual kembali ke stok; barang rusak dicatat retur lalu rusak (stok bersih tetap).
+ * ======================================================= */
+
+function aksiPenjualanRetur_(ctx) {
+  var p = ctx.payload;
+  var id = wajib_(p.id, 'Transaksi');
+  var alasan = wajib_(p.alasan, 'Alasan retur');
+  var t = cariSatu_(baca_('Penjualan'), 'id_penjualan', id);
+  if (!t) throw galat_('Transaksi tidak ditemukan', 'NOT_FOUND');
+  if (t.status === 'batal') throw galat_('Transaksi sudah dibatalkan', 'VALIDASI');
+  var kembaliStok = p.kembali_stok !== false;
+  var det = baca_('Detail_Penjualan').filter(function (d) { return d.id_penjualan === id; });
+  var sudah = qtyRetur_(id);
+  var subtotal = angka_(t.subtotal), diskon = angka_(t.diskon);
+  var faktor = subtotal > 0 ? (subtotal - diskon) / subtotal : 1;
+  var baris = gabungItems_(p.items).map(function (it) {
+    var d = cariSatu_(det, 'id_produk', it.id_produk);
+    if (!d) throw galat_('Produk tidak ada di transaksi ini', 'VALIDASI');
+    var sisa = bulat3_(angka_(d.qty) - (sudah[d.id_produk] || 0));
+    if (it.qty > sisa + 1e-9) throw galat_('Jumlah retur melebihi sisa yang bisa diretur (' + sisa + ')', 'VALIDASI');
+    return { d: d, qty: it.qty, nilai: Math.round(it.qty * angka_(d.harga) * faktor) };
+  });
+  if (!baris.length) throw galat_('Pilih item yang diretur', 'VALIDASI');
+  var nilai = baris.reduce(function (s, b) { return s + b.nilai; }, 0);
+
+  var piutang = Math.max(0, angka_(t.total) - nilaiRetur_(id) - bayarBersih_('penjualan', id));
+  var kurangiPiutang = Math.min(nilai, piutang);
+  var kembaliUang = nilai - kurangiPiutang;
+
+  var waktu = sekarang_();
+  var idR = idBanyak_('Retur', 'id_retur', 'RTR-', 6, baris.length);
+  tambahBanyak_('Retur', baris.map(function (b, i) { return { id_retur: idR[i], waktu: waktu, id_penjualan: id, id_produk: b.d.id_produk, qty: b.qty, harga: angka_(b.d.harga), nilai: b.nilai, hpp_satuan: angka_(b.d.hpp_satuan), kembali_stok: kembaliStok ? 'TRUE' : 'FALSE', alasan: alasan, dibuat_oleh: ctx.user.id_pengguna }; }));
+  var mutasi = [];
+  baris.forEach(function (b) {
+    mutasi.push({ waktu: waktu, id_produk: b.d.id_produk, jenis: 'retur', qty: b.qty, nilai_hpp: Math.round(b.qty * angka_(b.d.hpp_satuan)), ref_tipe: 'penjualan', ref_id: id, catatan: 'Retur: ' + alasan, dibuat_oleh: ctx.user.id_pengguna });
+    if (!kembaliStok) mutasi.push({ waktu: waktu, id_produk: b.d.id_produk, jenis: 'rusak', qty: -b.qty, nilai_hpp: -Math.round(b.qty * angka_(b.d.hpp_satuan)), ref_tipe: 'penjualan', ref_id: id, catatan: 'Barang retur rusak: ' + alasan, dibuat_oleh: ctx.user.id_pengguna });
+  });
+  var idM = idBanyak_('Mutasi_Stok', 'id_mutasi', 'MS-', 8, mutasi.length);
+  tambahBanyak_('Mutasi_Stok', mutasi.map(function (m, i) { m.id_mutasi = idM[i]; return m; }));
+  if (kembaliUang > 0) {
+    catatRefund_({ ref_tipe: 'penjualan', ref_id: id, jumlah: kembaliUang, metode: pilihan_(p.metode || 'tunai', ['tunai', 'transfer', 'qris'], 'Metode'), ket: 'Pengembalian uang retur ' + id }, ctx, waktu);
+  }
+  catatLog_(ctx.user.id_pengguna, 'penjualan.retur', 'Penjualan', id, 'Retur ' + nilai + ' (piutang -' + kurangiPiutang + ', uang kembali ' + kembaliUang + ')' + (kembaliStok ? '' : ' rusak'), ctx.requestId);
+  return { id: id, nilai: nilai, kurangi_piutang: kurangiPiutang, kembali_uang: kembaliUang };
+}
+
+function qtyRetur_(idPenjualan) {
+  var m = {};
+  baca_('Retur').filter(function (r) { return r.id_penjualan === idPenjualan; }).forEach(function (r) { m[r.id_produk] = bulat3_((m[r.id_produk] || 0) + angka_(r.qty)); });
+  return m;
+}
+function nilaiRetur_(idPenjualan) {
+  return baca_('Retur').filter(function (r) { return r.id_penjualan === idPenjualan; }).reduce(function (s, r) { return s + angka_(r.nilai); }, 0);
 }

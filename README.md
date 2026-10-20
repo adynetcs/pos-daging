@@ -80,12 +80,16 @@ Diterapkan di `utils/finance.ts`:
   tidak dihitung sebagai omzet maupun kas (bersih nol); jejak lengkapnya ada di sheet.
 - **Pelunasan piutang**: Keuangan → Piutang → *Terima bayar*, atau dari detail pelanggan. Boleh dicicil; kas bertambah
   pada tanggal pelunasan.
+- **Retur sebagian** (pemilik/admin): Kasir → Keranjang → *Riwayat* → *Retur*. Isi jumlah per item, alasan, dan apakah
+  barang layak jual. Nilai retur = jumlah × harga × (1 − diskon/subtotal). Retur mengurangi **piutang dulu**, sisanya
+  dikembalikan sebagai uang. Barang layak kembali ke stok; barang rusak dicatat `retur` lalu `rusak`. Omzet & HPP berkurang
+  pada tanggal retur (tab `Retur` di Sheets). Membatalkan transaksi yang sudah diretur hanya mengembalikan sisanya.
 - **Batalkan pesanan partai setelah DP**: pilih *Kembalikan ke pelanggan* (kas berkurang) atau *DP hangus*
   (dicatat sebagai pendapatan lain-lain di laba rugi). Keputusan tersimpan di kolom `alasan_batal`.
 
 ## Batasan yang perlu diketahui
 
-- Retur sebagian (mengembalikan sebagian item dari satu transaksi) belum ada; gunakan pembatalan transaksi lalu input ulang.
+- Retur untuk pesanan partai belum ada (retur hanya untuk transaksi kasir).
 - Bukti pembayaran berupa link/no. referensi, bukan unggah file.
 - Gambar produk berupa ilustrasi per kategori.
 
@@ -107,7 +111,7 @@ api/
   rpc.ts             POST satu pintu untuk aksi data (daftar aksi di-whitelist)
   _lib/              pemanggil GAS, sesi HMAC, helper (tidak menjadi route)
 gas/
-  Setup.gs           membuat/memperbarui struktur 18 tab
+  Setup.gs           membuat/memperbarui struktur 19 tab
   Api.gs             doPost: validasi API_SECRET, peran, payload, kunci tulis, log aktivitas
 ```
 

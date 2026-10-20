@@ -61,6 +61,10 @@ export interface TransaksiEceran {
   diskon: number;
   /** tanggal = waktu uang diterima (pelunasan tempo bisa berbeda hari dengan transaksi) */
   pembayaran: { metode: MetodeBayar; jumlah: number; tanggal?: string }[];
+  /** Retur sebagian: nilai sudah termasuk potongan diskon proporsional */
+  retur?: { produkId: string; qty: number; nilai: number; hpp: number; tanggal: string; kembaliStok: boolean }[];
+  /** Uang yang dikembalikan ke pelanggan (dari retur) */
+  refund?: { metode: Exclude<MetodeBayar, 'tempo'>; jumlah: number; tanggal: string }[];
 }
 
 export type StatusPesanan =

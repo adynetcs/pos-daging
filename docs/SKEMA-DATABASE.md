@@ -1,6 +1,6 @@
 # Skema Database POS Daging (Google Sheets)
 
-Versi skema: 1.2.0 Dibuat otomatis oleh `gas/Setup.gs`; jangan ubah header kolom secara manual.
+Versi skema: 1.5.0 Dibuat otomatis oleh `gas/Setup.gs`; jangan ubah header kolom secara manual.
 
 ## Prinsip
 
@@ -29,6 +29,8 @@ Versi skema: 1.2.0 Dibuat otomatis oleh `gas/Setup.gs`; jangan ubah header kolom
 | Modal masuk / penarikan | Modal, Kas_Mutasi |
 | Pengeluaran operasional | Pengeluaran, Kas_Mutasi |
 | Pembatalan | status = batal pada dokumen, plus baris pembalik di Mutasi_Stok / Kas_Mutasi |
+| Retur sebagian kasir | Retur, Mutasi_Stok (retur +, dan rusak − bila barang rusak), Pembayaran refund + Kas_Mutasi bila ada uang kembali |
+| Pelunasan piutang | Pembayaran (masuk, cicilan/pelunasan), Kas_Mutasi |
 
 ## Tab dan kolom
 
@@ -205,6 +207,24 @@ Item penjualan. Harga & HPP disalin saat transaksi (tidak ikut berubah bila mast
 | `hpp_satuan` | uang |  |
 | `subtotal` | uang | round(qty × harga) |
 
+### Retur
+
+Retur sebagian dari transaksi kasir. Nilai retur mengurangi piutang lebih dulu, sisanya dikembalikan sebagai uang.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id_retur` | id | RTR-000001 |
+| `waktu` | waktu |  |
+| `id_penjualan` | ref | → Penjualan |
+| `id_produk` | ref | → Produk |
+| `qty` | qty | Jumlah dikembalikan |
+| `harga` | uang | Harga jual per satuan saat transaksi |
+| `nilai` | uang | Nilai retur setelah potongan diskon proporsional |
+| `hpp_satuan` | uang | HPP per satuan saat transaksi |
+| `kembali_stok` | boolean | FALSE = barang rusak, tidak dijual lagi |
+| `alasan` | teks |  |
+| `dibuat_oleh` | ref | → Pengguna |
+
 ### Pesanan
 
 Pesanan partai. Omzet diakui saat status selesai.
@@ -222,6 +242,8 @@ Pesanan partai. Omzet diakui saat status selesai.
 | `selesai_pada` | waktu |  |
 | `dibuat_pada` | waktu |  |
 | `dibuat_oleh` | ref | → Pengguna |
+| `dibatalkan_pada` | waktu |  |
+| `alasan_batal` | teks | Termasuk keputusan DP dikembalikan / hangus |
 
 ### Detail_Pesanan
 

@@ -25,7 +25,9 @@ interface Snapshot {
   produk: ProdukSheet[];
   pelanggan: { id: string; nama: string; telepon: string; alamat: string; jenis: 'eceran' | 'partai' }[];
   supplier: Supplier[];
-  penjualan: { id: string; waktu: string; id_pelanggan: string; diskon: number; total: number; items: { id_produk: string; qty: number; harga: number; hpp: number }[]; bayar: { metode: Exclude<MetodeBayar, 'tempo'>; jumlah: number; waktu: string }[] }[];
+  penjualan: { id: string; waktu: string; id_pelanggan: string; diskon: number; total: number; items: { id_produk: string; qty: number; harga: number; hpp: number }[]; bayar: { metode: Exclude<MetodeBayar, 'tempo'>; jumlah: number; waktu: string }[];
+    refund: { metode: Exclude<MetodeBayar, 'tempo'>; jumlah: number; waktu: string }[];
+    retur: { id_produk: string; qty: number; nilai: number; hpp: number; waktu: string; kembali_stok: boolean }[] }[];
   pesanan: { id: string; tanggal: string; id_pelanggan: string; jadwal_kirim: string; alamat_kirim: string; dp_persen: number; status: StatusPesanan; catatan: string; selesai_pada: string; dibatalkan_pada: string;
     items: { id_produk: string; qty: number; harga: number; hpp: number }[]; bayar: { id: string; waktu: string; arah: 'masuk' | 'keluar'; jenis: 'dp' | 'cicilan' | 'pelunasan' | 'refund'; metode: 'tunai' | 'transfer' | 'qris'; jumlah: number; bukti: string }[] }[];
   pembelian: { id: string; tanggal: string; id_supplier: string; status: 'dipesan' | 'sebagian' | 'diterima'; biaya_tambahan: number; ket_biaya: string;
@@ -78,10 +80,14 @@ function sisaBatch(batch: Snapshot['batch'], stok: Record<string, number>): Batc
 function petakan(s: Snapshot) {
   const produk = s.produk.map(keProduk);
   const transaksi: TransaksiEceran[] = s.penjualan.map((t) => {
-    const dibayar = t.bayar.reduce((a, b) => a + b.jumlah, 0);
+    const retur = (t.retur ?? []).map((r) => ({ produkId: r.id_produk, qty: r.qty, nilai: r.nilai, hpp: r.hpp, tanggal: iso(r.waktu), kembaliStok: r.kembali_stok }));
+    const refund = (t.refund ?? []).map((r) => ({ metode: r.metode, jumlah: r.jumlah, tanggal: iso(r.waktu) }));
+    const totalBersih = t.total - retur.reduce((a, r) => a + r.nilai, 0);
+    const dibayarBersih = t.bayar.reduce((a, b) => a + b.jumlah, 0) - refund.reduce((a, r) => a + r.jumlah, 0);
     const pembayaran: TransaksiEceran['pembayaran'] = t.bayar.map((b) => ({ metode: b.metode, jumlah: b.jumlah, tanggal: iso(b.waktu) }));
-    if (dibayar < t.total) pembayaran.push({ metode: 'tempo', jumlah: t.total - dibayar });
-    return { id: t.id, tanggal: iso(t.waktu), pelangganId: t.id_pelanggan, diskon: t.diskon, pembayaran,
+    // Kekurangan bayar (setelah retur) = piutang tempo
+    if (dibayarBersih < totalBersih) pembayaran.push({ metode: 'tempo', jumlah: totalBersih - dibayarBersih });
+    return { id: t.id, tanggal: iso(t.waktu), pelangganId: t.id_pelanggan, diskon: t.diskon, pembayaran, retur, refund,
       items: t.items.map((i) => ({ produkId: i.id_produk, qty: i.qty, harga: i.harga, hpp: i.hpp })) };
   });
   const pesanan: PesananPartai[] = s.pesanan.map((p) => ({
@@ -144,6 +150,7 @@ interface Store extends DataUsaha, Omit<Data, 'produk' | 'transaksi' | 'pesanan'
   ubahStatusPesanan: (id: string, status: StatusPesanan, opsi?: { refund?: boolean; alasan?: string; metode?: 'tunai' | 'transfer' | 'qris' }) => Promise<void>;
   bayarPenjualan: (id: string, jumlah: number, metode: 'tunai' | 'transfer' | 'qris') => Promise<void>;
   batalPenjualan: (id: string, alasan: string) => Promise<void>;
+  returPenjualan: (p: { id: string; items: { id_produk: string; qty: number }[]; alasan: string; kembali_stok: boolean; metode: 'tunai' | 'transfer' | 'qris' }) => Promise<{ nilai: number; kurangi_piutang: number; kembali_uang: number }>;
   bayarPesanan: (id: string, b: { jenis: 'dp' | 'cicilan' | 'pelunasan'; metode: 'tunai' | 'transfer' | 'qris'; jumlah: number; bukti?: string }) => Promise<StatusPesanan>;
   buatPembelian: (p: InputPembelian) => Promise<string>;
   terimaPembelian: (id: string, qty: Record<string, number>) => Promise<void>;
@@ -208,6 +215,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     ubahStatusPesanan: async (id, status, opsi = {}) => { await tulis('pesanan.status', { id, status, ...opsi }); },
     bayarPenjualan: async (id, jumlah, metode) => { await tulis('penjualan.bayar', { id, jumlah, metode }); },
     batalPenjualan: async (id, alasan) => { await tulis('penjualan.batal', { id, alasan }); },
+    returPenjualan: (p) => tulis('penjualan.retur', p),
     bayarPesanan: async (id, b) => (await tulis<{ status: StatusPesanan }>('pesanan.bayar', { id, ...b })).status,
     buatPembelian: async (p) => (await tulis<{ id: string }>('pembelian.simpan', p)).id,
     terimaPembelian: async (id, qty) => { await tulis('pembelian.terima', { id, qty }); },

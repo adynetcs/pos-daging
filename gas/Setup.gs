@@ -25,7 +25,7 @@ var AKUN_PEMILIK = {
 };
 
 /** Versi skema. Naikkan jika kolom berubah. */
-var SKEMA_VERSI = '1.4.0';
+var SKEMA_VERSI = '1.5.0';
 
 /**
  * Definisi skema. Setiap kolom: [nama, tipe, keterangan, pilihan?]
@@ -181,6 +181,22 @@ var SKEMA = {
       ['harga', 'uang', 'Per satuan'],
       ['hpp_satuan', 'uang', ''],
       ['subtotal', 'uang', 'round(qty × harga)']
+    ]
+  },
+  Retur: {
+    ket: 'Retur sebagian dari transaksi kasir. Nilai retur mengurangi piutang lebih dulu, sisanya dikembalikan sebagai uang.',
+    kolom: [
+      ['id_retur', 'id', 'RTR-000001'],
+      ['waktu', 'waktu', ''],
+      ['id_penjualan', 'ref', '→ Penjualan'],
+      ['id_produk', 'ref', '→ Produk'],
+      ['qty', 'qty', 'Jumlah dikembalikan'],
+      ['harga', 'uang', 'Harga jual per satuan saat transaksi'],
+      ['nilai', 'uang', 'Nilai retur setelah potongan diskon proporsional'],
+      ['hpp_satuan', 'uang', 'HPP per satuan saat transaksi'],
+      ['kembali_stok', 'boolean', 'FALSE = barang rusak, tidak dijual lagi'],
+      ['alasan', 'teks', ''],
+      ['dibuat_oleh', 'ref', '→ Pengguna']
     ]
   },
   Pesanan: {

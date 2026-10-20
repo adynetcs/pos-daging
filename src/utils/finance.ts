@@ -29,7 +29,9 @@ const dalam = (tgl: string, p?: Periode) => !p || (tgl.slice(0, 10) >= p.dari &&
 
 /* ---------- Transaksi eceran ---------- */
 export const subtotalTrx = (t: TransaksiEceran) => totalItems(t.items);
-export const totalTrx = (t: TransaksiEceran) => subtotalTrx(t) - t.diskon;
+export const returTrx = (t: TransaksiEceran) => jumlah(t.retur ?? [], (r) => r.nilai);
+/** Total setelah diskon dan retur */
+export const totalTrx = (t: TransaksiEceran) => subtotalTrx(t) - t.diskon - returTrx(t);
 export const tempoTrx = (t: TransaksiEceran) => jumlah(t.pembayaran.filter((b) => b.metode === 'tempo'), (b) => b.jumlah);
 export const tunaiTrx = (t: TransaksiEceran) => totalTrx(t) - tempoTrx(t);
 
@@ -89,6 +91,12 @@ export function bukuKas(d: DataUsaha): BarisKas[] {
   for (const [tgl, v] of perHari) {
     baris.push({ id: `KS-${tgl}`, tanggal: tgl, sumber: 'penjualan_eceran', referensi: 'Rekap kasir', keterangan: 'Penjualan eceran (tunai, transfer, QRIS)', masuk: v, keluar: 0 });
   }
+  // Uang yang dikembalikan karena retur, per hari
+  const kembali = new Map<string, number>();
+  for (const t of d.transaksi) for (const r of t.refund ?? []) kembali.set(r.tanggal.slice(0, 10), (kembali.get(r.tanggal.slice(0, 10)) ?? 0) + r.jumlah);
+  for (const [tgl, v] of kembali) {
+    baris.push({ id: `KR-${tgl}`, tanggal: tgl, sumber: 'refund_pelanggan', referensi: 'Retur kasir', keterangan: 'Pengembalian uang retur penjualan', masuk: 0, keluar: v });
+  }
   for (const [tgl, v] of pelunasan) {
     baris.push({ id: `KP-${tgl}`, tanggal: tgl, sumber: 'pelunasan_pelanggan', referensi: 'Rekap kasir', keterangan: 'Pelunasan piutang penjualan tempo', masuk: v, keluar: 0 });
   }
@@ -139,6 +147,13 @@ export function barisPenjualan(d: DataUsaha, p?: Periode): BarisPenjualan[] {
       // Diskon dialokasikan proporsional ke tiap baris
       const potongan = sub > 0 ? Math.round((t.diskon * nilai) / sub) : 0;
       out.push({ tanggal: t.tanggal.slice(0, 10), produkId: i.produkId, qty: i.qty, nilai: nilai - potongan, hpp: nilaiBaris(i.qty, i.hpp ?? hppOf(i.produkId)), sumber: 'eceran' });
+    }
+  }
+  // Retur mengurangi omzet & HPP pada tanggal retur (laporan periode sebelumnya tidak berubah)
+  for (const t of d.transaksi) {
+    for (const r of t.retur ?? []) {
+      if (!dalam(r.tanggal, p)) continue;
+      out.push({ tanggal: r.tanggal.slice(0, 10), produkId: r.produkId, qty: -r.qty, nilai: -r.nilai, hpp: -nilaiBaris(r.qty, r.hpp), sumber: 'eceran' });
     }
   }
   for (const ps of d.pesanan) {
