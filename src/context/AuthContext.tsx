@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, ApiError, IS_DEMO, type PenggunaSesi } from '@/services/api';
+import { api, ApiError, type PenggunaSesi } from '@/services/api';
 
 interface Auth {
   pengguna: PenggunaSesi | null;
@@ -9,7 +9,6 @@ interface Auth {
   logout: () => Promise<void>;
 }
 
-const PENGGUNA_DEMO: PenggunaSesi = { id_pengguna: 'demo', nama: 'Ady', username: 'ady', email: 'demo@contoh.id', peran: 'pemilik' };
 const Ctx = createContext<Auth | null>(null);
 export const useAuth = () => {
   const c = useContext(Ctx);
@@ -18,12 +17,11 @@ export const useAuth = () => {
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [pengguna, setPengguna] = useState<PenggunaSesi | null>(IS_DEMO ? PENGGUNA_DEMO : null);
-  const [memuat, setMemuat] = useState(!IS_DEMO);
+  const [pengguna, setPengguna] = useState<PenggunaSesi | null>(null);
+  const [memuat, setMemuat] = useState(true);
   const [galat, setGalat] = useState<string | null>(null);
 
   useEffect(() => {
-    if (IS_DEMO) return;
     api.me()
       .then(setPengguna)
       .catch((e: ApiError) => { if (e.status !== 401) setGalat(e.message); })
@@ -32,13 +30,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (akun: string, pin: string) => {
     setGalat(null);
-    const u = await api.login(akun, pin);
-    setPengguna(u);
+    setPengguna(await api.login(akun, pin));
   }, []);
 
   const logout = useCallback(async () => {
-    if (!IS_DEMO) { try { await api.logout(); } catch { /* tetap keluar di sisi browser */ } }
-    setPengguna(IS_DEMO ? PENGGUNA_DEMO : null);
+    try { await api.logout(); } catch { /* tetap keluar di sisi browser */ }
+    setPengguna(null);
   }, []);
 
   return <Ctx.Provider value={{ pengguna, memuat, galat, login, logout }}>{children}</Ctx.Provider>;

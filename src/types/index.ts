@@ -49,6 +49,8 @@ export interface ItemTransaksi {
   produkId: string;
   qty: number;
   harga: number;
+  /** HPP per satuan yang dicatat saat transaksi (dari Sheets). */
+  hpp?: number;
 }
 
 export interface TransaksiEceran {
@@ -82,6 +84,10 @@ export interface PesananPartai {
   alamatKirim: string;
   catatan?: string;
   status: StatusPesanan;
+  /** Persentase DP yang berlaku saat pesanan dibuat. */
+  dpPersen?: number;
+  /** Tanggal barang benar-benar diserahkan (status selesai). Dasar pengakuan omzet. */
+  selesaiPada?: string;
 }
 
 export interface ItemPembelian {

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { CalendarClock, FileImage, MapPin, Phone, Truck, CheckCircle2, Circle, Wallet, XCircle } from 'lucide-react';
-import { useData, useLookup } from '@/context/DataContext';
+import { useData, useLookup, pesanGalat } from '@/context/DataContext';
 import { useToast } from '@/context/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/FormInput';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusPesananBadge, STATUS_PESANAN, Badge } from '@/components/ui/StatusBadge';
 import { ProgressBar } from '@/components/charts/Charts';
 import { ProductThumb } from '@/components/ui/ProductThumb';
-import { HARI_INI } from '@/data/dummy';
+import { hariIni } from '@/utils/waktu';
 import type { PembayaranPesanan, PesananPartai, StatusPesanan } from '@/types';
 import { nilaiBaris } from '@/utils/calc';
 import { dibayarPesanan, dpPesanan, sisaPesanan, totalPesanan } from '@/utils/finance';
@@ -23,7 +24,8 @@ const LANJUT: Partial<Record<StatusPesanan, { ke: StatusPesanan; label: string }
 };
 
 export function DetailPesanan({ p }: { p: PesananPartai }) {
-  const { ubahStatusPesanan, tambahBayarPesanan, pengaturan } = useData();
+  const { ubahStatusPesanan, bayarPesanan, pengaturan } = useData();
+  const [proses, setProses] = useState(false);
   const cari = useLookup();
   const toast = useToast();
   const [modalBayar, setModalBayar] = useState(false);
@@ -39,15 +41,22 @@ export function DetailPesanan({ p }: { p: PesananPartai }) {
   const beratTotal = p.items.reduce((s, i) => s + (cari.produk(i.produkId)?.satuan === 'kg' ? i.qty : 0), 0);
   const lanjut = LANJUT[p.status];
 
-  const ubah = (s: StatusPesanan) => {
-    ubahStatusPesanan(p.id, s);
-    toast({ jenis: 'sukses', judul: `Status: ${STATUS_PESANAN[s].label}`, pesan: `${p.id} diperbarui (demo).` });
+  const ubah = async (s: StatusPesanan) => {
+    setProses(true);
+    try {
+      await ubahStatusPesanan(p.id, s);
+      toast({ jenis: 'sukses', judul: `Status: ${STATUS_PESANAN[s].label}`, pesan: s === 'selesai' ? `${p.id} selesai. Stok sudah dikurangi.` : `${p.id} diperbarui.` });
+    } catch (e) {
+      toast({ jenis: 'gagal', judul: 'Status belum berubah', pesan: pesanGalat(e) });
+    } finally {
+      setProses(false);
+    }
   };
   const klikLanjut = () => {
     if (!lanjut) return;
     if (lanjut.ke === 'proses' && !dpOk) return setKonfirmasi('proses_tanpa_dp');
     if (lanjut.ke === 'selesai' && sisa > 0) return setKonfirmasi('selesai_piutang');
-    ubah(lanjut.ke);
+    void ubah(lanjut.ke);
   };
 
   const idxAlur = ALUR.indexOf(p.status);
@@ -88,7 +97,7 @@ export function DetailPesanan({ p }: { p: PesananPartai }) {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {lanjut && <Button onClick={klikLanjut}>{lanjut.label}</Button>}
+        {lanjut && <Button onClick={klikLanjut} disabled={proses}>{proses ? 'Menyimpan…' : lanjut.label}</Button>}
         {p.status !== 'batal' && sisa > 0 && p.status !== 'draft' && <Button varian="garis" ikon={<Wallet className="h-4 w-4" />} onClick={() => setModalBayar(true)}>Catat pembayaran</Button>}
         {!['selesai', 'batal'].includes(p.status) && <Button varian="hantu" className="text-red-600 hover:bg-red-50 hover:text-red-700" ikon={<XCircle className="h-4 w-4" />} onClick={() => setKonfirmasi('batal')}>Batalkan</Button>}
       </div>
@@ -133,38 +142,41 @@ export function DetailPesanan({ p }: { p: PesananPartai }) {
       <dl className="mt-2 space-y-2 rounded-xl border border-gray-200 p-3 text-sm">
         <div className="flex gap-2"><Truck className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /><div><dt className="sr-only">Pelanggan</dt><dd className="font-semibold">{pel?.nama}</dd></div></div>
         <div className="flex gap-2"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /><dd>{pel?.telepon}</dd></div>
-        <div className="flex gap-2"><CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /><dd>{tanggal(p.jadwalKirim)}{p.jadwalKirim < HARI_INI && !['selesai', 'batal'].includes(p.status) && <span className="ml-2"><Badge nada="merah">Terlambat</Badge></span>}</dd></div>
+        <div className="flex gap-2"><CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /><dd>{tanggal(p.jadwalKirim)}{p.jadwalKirim < hariIni() && !['selesai', 'batal'].includes(p.status) && <span className="ml-2"><Badge nada="merah">Terlambat</Badge></span>}</dd></div>
         <div className="flex gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /><dd>{p.alamatKirim}</dd></div>
         {p.catatan && <p className="rounded-lg bg-amber-50 px-3 py-2 text-[13px] text-amber-900">{p.catatan}</p>}
       </dl>
 
       <BayarPesananModal buka={modalBayar} p={p} dp={dp} onTutup={() => setModalBayar(false)}
-        onSimpan={(b) => {
-          tambahBayarPesanan(p.id, b);
-          if (p.status === 'menunggu_dp' && dibayar + b.jumlah >= dp) ubahStatusPesanan(p.id, 'proses');
+        onSimpan={async (b) => {
+          const statusBaru = await bayarPesanan(p.id, b);
           setModalBayar(false);
-          toast({ jenis: 'sukses', judul: `Pembayaran ${rupiah(b.jumlah)} dicatat (demo)`, pesan: p.status === 'menunggu_dp' && dibayar + b.jumlah >= dp ? 'DP terpenuhi, status berubah menjadi Dalam proses.' : undefined });
+          toast({ jenis: 'sukses', judul: `Pembayaran ${rupiah(b.jumlah)} tersimpan`, pesan: statusBaru !== p.status ? 'DP terpenuhi, status berubah menjadi Dalam proses.' : undefined });
         }} />
 
       <ConfirmDialog buka={konfirmasi === 'batal'} bahaya judul="Batalkan pesanan?" labelYa="Ya, batalkan"
         pesan={<>Pesanan {p.id} akan dibatalkan.{dibayar > 0 && <> Sudah ada pembayaran <b>{rupiah(dibayar)}</b>; pengembalian dana perlu dicatat terpisah.</>}</>}
-        onBatal={() => setKonfirmasi(null)} onYa={() => { ubah('batal'); setKonfirmasi(null); }} />
+        onBatal={() => setKonfirmasi(null)} onYa={() => { void ubah('batal'); setKonfirmasi(null); }} />
       <ConfirmDialog buka={konfirmasi === 'proses_tanpa_dp'} judul="DP belum terpenuhi" labelYa="Tetap proses"
         pesan={<>DP baru {rupiah(dibayar)} dari target {rupiah(dp)}. Sesuai ketentuan, pesanan sebaiknya diproses setelah DP {pengaturan.dpPersen}% diterima.</>}
-        onBatal={() => setKonfirmasi(null)} onYa={() => { ubah('proses'); setKonfirmasi(null); }} />
+        onBatal={() => setKonfirmasi(null)} onYa={() => { void ubah('proses'); setKonfirmasi(null); }} />
       <ConfirmDialog buka={konfirmasi === 'selesai_piutang'} judul="Masih ada sisa tagihan" labelYa="Selesai, catat piutang"
         pesan={<>Sisa {rupiah(sisa)} akan tercatat sebagai <b>piutang</b> {pel?.nama} setelah barang diserahkan.</>}
-        onBatal={() => setKonfirmasi(null)} onYa={() => { ubah('selesai'); setKonfirmasi(null); }} />
+        onBatal={() => setKonfirmasi(null)} onYa={() => { void ubah('selesai'); setKonfirmasi(null); }} />
       <Modal buka={!!bukti} onTutup={() => setBukti(null)} judul="Bukti pembayaran" sub={bukti ?? ''} lebar="sm">
-        <div className="grid aspect-[3/4] place-items-center rounded-xl bg-gray-100 text-center text-sm text-gray-500">
-          <div><FileImage className="mx-auto h-10 w-10 text-gray-400" /><p className="mt-2">Pratinjau berkas akan tampil setelah<br />penyimpanan file terhubung.</p></div>
-        </div>
+        {bukti && /^https?:\/\//i.test(bukti) ? (
+          <a href={bukti} target="_blank" rel="noopener noreferrer" className="btn h-11 w-full bg-brand-700 text-white">Buka bukti pembayaran</a>
+        ) : (
+          <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-700">Referensi: <b>{bukti}</b></p>
+        )}
       </Modal>
     </div>
   );
 }
 
-function BayarPesananModal({ buka, p, dp, onTutup, onSimpan }: { buka: boolean; p: PesananPartai; dp: number; onTutup: () => void; onSimpan: (b: PembayaranPesanan) => void }) {
+function BayarPesananModal({ buka, p, dp, onTutup, onSimpan }: { buka: boolean; p: PesananPartai; dp: number; onTutup: () => void; onSimpan: (b: { jenis: 'dp' | 'cicilan' | 'pelunasan'; metode: 'tunai' | 'transfer' | 'qris'; jumlah: number; bukti?: string }) => Promise<void> }) {
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
   const dibayar = dibayarPesanan(p);
   const sisa = sisaPesanan(p);
   const kurangDp = Math.max(0, dp - dibayar);
@@ -175,13 +187,18 @@ function BayarPesananModal({ buka, p, dp, onTutup, onSimpan }: { buka: boolean; 
   useEffect(() => {
     if (!buka) return;
     const j = kurangDp > 0 ? 'dp' : 'pelunasan';
-    setJenis(j); setJumlah(String(j === 'dp' ? kurangDp : sisa)); setFile(''); setMetode('transfer');
-  }, [buka, kurangDp, sisa]);
+    setJenis(j); setJumlah(String(j === 'dp' ? kurangDp : sisa)); setFile(''); setMetode('transfer'); setGalat('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buka]);
   const n = parseInt(jumlah.replace(/\D/g, ''), 10) || 0;
   const salah = n <= 0 ? 'Isi nominal pembayaran.' : n > sisa ? `Melebihi sisa tagihan ${rupiah(sisa)}.` : '';
   return (
     <Modal buka={buka} onTutup={onTutup} judul="Catat pembayaran pelanggan" sub={`${p.id}, sisa ${rupiah(sisa)}`} lebar="sm"
-      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button disabled={!!salah} onClick={() => onSimpan({ id: `BP-${Date.now().toString().slice(-5)}`, tanggal: HARI_INI, jenis, metode, jumlah: n, bukti: file || undefined })}>Simpan pembayaran</Button></>}>
+      footer={<><Button varian="garis" onClick={onTutup} disabled={proses}>Batal</Button><Button disabled={!!salah || proses} onClick={async () => {
+        setProses(true); setGalat('');
+        try { await onSimpan({ jenis: jenis === 'cicilan' || jenis === 'pelunasan' ? jenis : 'dp', metode, jumlah: n, bukti: file.trim() || undefined }); }
+        catch (e) { setGalat(pesanGalat(e)); } finally { setProses(false); }
+      }}>{proses ? 'Menyimpan…' : 'Simpan pembayaran'}</Button></>}>
       <div className="space-y-4">
         <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Jenis pembayaran">
           {([['dp', 'DP'], ['cicilan', 'Cicilan'], ['pelunasan', 'Pelunasan']] as const).map(([k, l]) => (
@@ -201,13 +218,9 @@ function BayarPesananModal({ buka, p, dp, onTutup, onSimpan }: { buka: boolean; 
             <option value="transfer">Transfer</option><option value="tunai">Tunai</option><option value="qris">QRIS</option>
           </select>
         </div>
-        <div>
-          <span className="label">Bukti pembayaran</span>
-          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50">
-            <FileImage className="h-5 w-5 text-gray-400" /><span className="truncate">{file || 'Pilih foto/PDF (hanya nama berkas yang dicatat di demo)'}</span>
-            <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={(e) => setFile(e.target.files?.[0]?.name ?? '')} />
-          </label>
-        </div>
+        <Input label="Link atau nomor referensi bukti (opsional)" value={file} onChange={(e) => setFile(e.target.value)}
+          placeholder="mis. link Google Drive foto bukti, atau no. referensi transfer" />
+        {galat && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{galat}</p>}
       </div>
     </Modal>
   );

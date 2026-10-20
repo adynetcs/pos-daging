@@ -25,7 +25,7 @@ var AKUN_PEMILIK = {
 };
 
 /** Versi skema. Naikkan jika kolom berubah. */
-var SKEMA_VERSI = '1.2.0';
+var SKEMA_VERSI = '1.3.0';
 
 /**
  * Definisi skema. Setiap kolom: [nama, tipe, keterangan, pilihan?]
@@ -288,7 +288,19 @@ var PENGATURAN_AWAL = [
   ['modal_awal_rencana', '7000000', 'Nilai rencana saja, BUKAN transaksi. Catat modal asli lewat aplikasi.'],
   ['format_no_penjualan', 'TRX-{YYYYMMDD}-{NNN}', ''],
   ['format_no_pesanan', 'PP-{YYYYMMDD}-{NN}', ''],
-  ['format_no_pembelian', 'PB-{YYYYMMDD}-{NN}', '']
+  ['format_no_pembelian', 'PB-{YYYYMMDD}-{NN}', ''],
+  ['tagline', 'Segar, lengkap, terpercaya', 'Tampil di bawah nama usaha'],
+  ['alamat_usaha', '', 'Tampil di struk'],
+  ['telepon_usaha', '', 'Tampil di struk'],
+  ['npwp', '', ''],
+  ['rekening_transfer', '', 'Mis. BCA 1234567890 a.n. Steak Hook Premium'],
+  ['struk_lebar', '58mm', '58mm atau 80mm'],
+  ['struk_footer', 'Terima kasih. Daging segar setiap hari.', 'Catatan kaki struk'],
+  ['struk_logo', 'TRUE', ''],
+  ['metode_tunai', 'TRUE', ''],
+  ['metode_qris', 'TRUE', ''],
+  ['metode_transfer', 'TRUE', ''],
+  ['metode_tempo', 'TRUE', 'Penjualan tempo (piutang) untuk pelanggan terdaftar']
 ];
 
 var WARNA_HEADER = '#841D28';

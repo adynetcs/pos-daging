@@ -10,8 +10,8 @@ export interface HasilBayar { pembayaran: { metode: MetodeBayar; jumlah: number 
 
 const parse = (s: string) => parseInt(s.replace(/\D/g, ''), 10) || 0;
 
-export function BayarModal({ buka, total, bolehTempo, metodeAktif, onTutup, onBayar }: {
-  buka: boolean; total: number; bolehTempo: boolean;
+export function BayarModal({ buka, total, bolehTempo, metodeAktif, memproses = false, rekening = '', onTutup, onBayar }: {
+  buka: boolean; total: number; bolehTempo: boolean; memproses?: boolean; rekening?: string;
   metodeAktif: Record<MetodeBayar, boolean>;
   onTutup: () => void; onBayar: (h: HasilBayar) => void;
 }) {
@@ -56,8 +56,8 @@ export function BayarModal({ buka, total, bolehTempo, metodeAktif, onTutup, onBa
   };
 
   return (
-    <Modal buka={buka} onTutup={onTutup} judul="Pembayaran" sub="Simulasi. Tidak ada transaksi nyata yang diproses." lebar="sm"
-      footer={<><Button varian="garis" onClick={onTutup}>Kembali</Button><Button disabled={!valid} onClick={kirim} className="min-w-36">Bayar {rupiah(total)}</Button></>}>
+    <Modal buka={buka} onTutup={onTutup} judul="Pembayaran" sub="Pastikan uang/dana sudah diterima sebelum menekan Bayar." lebar="sm"
+      footer={<><Button varian="garis" onClick={onTutup} disabled={memproses}>Kembali</Button><Button disabled={!valid || memproses} onClick={kirim} className="min-w-36">{memproses ? 'Menyimpan…' : `Bayar ${rupiah(total)}`}</Button></>}>
       <div className="rounded-2xl bg-gray-50 p-4 text-center">
         <p className="text-[13px] text-gray-500">Total tagihan</p>
         <p className="num text-3xl font-extrabold text-gray-900">{rupiah(total)}</p>
@@ -98,14 +98,14 @@ export function BayarModal({ buka, total, bolehTempo, metodeAktif, onTutup, onBa
         {mode === 'qris' && (
           <div className="flex flex-col items-center rounded-2xl border border-dashed border-gray-300 p-5 text-center">
             <QrCode className="h-24 w-24 text-gray-800" strokeWidth={1.2} />
-            <p className="mt-2 text-sm font-semibold">Contoh tampilan QRIS (bukan kode asli)</p>
+            <p className="mt-2 text-sm font-semibold">Gunakan QRIS toko Anda</p>
             <p className="text-xs text-gray-500">Tekan Bayar setelah dana terlihat masuk di aplikasi merchant.</p>
           </div>
         )}
         {mode === 'transfer' && (
           <div className="rounded-2xl border border-gray-200 p-4 text-sm">
-            <p className="text-gray-500">Rekening tujuan (contoh)</p>
-            <p className="mt-1 font-bold">BCA 123-456-7890 a.n. Steak Hook Premium</p>
+            <p className="text-gray-500">Rekening tujuan</p>
+            <p className="mt-1 font-bold">{rekening || 'Isi nomor rekening di Pengaturan → Metode pembayaran'}</p>
             <p className="mt-2 text-xs text-gray-500">Pastikan dana sudah masuk sebelum menekan Bayar.</p>
           </div>
         )}

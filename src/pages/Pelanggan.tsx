@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Phone, MapPin } from 'lucide-react';
-import { useData } from '@/context/DataContext';
+import { useData, pesanGalat } from '@/context/DataContext';
 import { useToast } from '@/context/ToastContext';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +10,7 @@ import { DataTable, type Kolom } from '@/components/ui/DataTable';
 import { Badge, StatusPesananBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/FormInput';
-import { CatatanDemo, EmptyState } from '@/components/ui/States';
+import { Catatan, EmptyState } from '@/components/ui/States';
 import type { JenisPelanggan, Pelanggan as TPelanggan } from '@/types';
 import { piutang, totalPesanan, totalTrx } from '@/utils/finance';
 import { rupiah, tanggalPendek } from '@/utils/format';
@@ -34,7 +34,7 @@ export default function Pelanggan() {
       trx, ps,
     };
   };
-  const daftar = d.pelanggan.filter((c) => c.id !== 'c0' && (j === 'semua' || c.jenis === j) && (!q || `${c.nama} ${c.telepon}`.toLowerCase().includes(q.toLowerCase())));
+  const daftar = d.pelanggan.filter((c) => c.id !== 'PLG-0000' && (j === 'semua' || c.jenis === j) && (!q || `${c.nama} ${c.telepon}`.toLowerCase().includes(q.toLowerCase())));
 
   const kolom: Kolom<TPelanggan>[] = [
     { key: 'n', judul: 'Nama', render: (c) => <span className="font-semibold text-gray-900">{c.nama}</span>, sortBy: (c) => c.nama },
@@ -63,7 +63,7 @@ export default function Pelanggan() {
             </div>
           )} />
       </Card>
-      <div className="mt-4"><CatatanDemo>Data pelanggan contoh. Transaksi tanpa nama tercatat sebagai Pelanggan Umum.</CatatanDemo></div>
+      <div className="mt-4"><Catatan>Transaksi kasir tanpa nama tercatat sebagai Pelanggan Umum. Piutang = transaksi tempo dan sisa tagihan pesanan yang sudah dikirim.</Catatan></div>
 
       <Modal buka={!!detail} onTutup={() => setDetail(null)} judul={detail?.nama ?? ''} sub={detail?.jenis === 'partai' ? 'Pelanggan partai' : 'Pelanggan eceran'} lebar="md">
         {detail && s && (
@@ -87,22 +87,30 @@ export default function Pelanggan() {
           </>
         )}
       </Modal>
-      <FormPelanggan buka={form} onTutup={() => setForm(false)} onSimpan={(c) => { d.simpanPelanggan(c); setForm(false); toast({ jenis: 'sukses', judul: 'Pelanggan ditambahkan (demo)', pesan: c.nama }); }} />
+      <FormPelanggan buka={form} onTutup={() => setForm(false)} onSimpan={async (c) => { await d.simpanPelanggan(c); setForm(false); toast({ jenis: 'sukses', judul: 'Pelanggan tersimpan', pesan: c.nama }); }} />
     </>
   );
 }
 
-function FormPelanggan({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (c: TPelanggan) => void }) {
-  const [f, setF] = useState({ nama: '', telepon: '', alamat: '', jenis: 'eceran' as JenisPelanggan });
+function FormPelanggan({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (c: Omit<TPelanggan, 'id'>) => Promise<void> }) {
+  const KOSONG = { nama: '', telepon: '', alamat: '', jenis: 'eceran' as JenisPelanggan };
+  const [f, setF] = useState(KOSONG);
   const [err, setErr] = useState('');
+  const [proses, setProses] = useState(false);
+  useEffect(() => { if (buka) { setF(KOSONG); setErr(''); } }, [buka]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Modal buka={buka} onTutup={onTutup} judul="Tambah pelanggan" lebar="sm"
-      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button onClick={() => { if (!f.nama.trim()) return setErr('Nama wajib diisi.'); onSimpan({ id: `c${Date.now()}`, ...f }); setF({ nama: '', telepon: '', alamat: '', jenis: 'eceran' }); setErr(''); }}>Simpan pelanggan</Button></>}>
+      footer={<><Button varian="garis" onClick={onTutup} disabled={proses}>Batal</Button><Button disabled={proses} onClick={async () => {
+        if (!f.nama.trim()) return setErr('Nama wajib diisi.');
+        setProses(true); setErr('');
+        try { await onSimpan(f); } catch (e) { setErr(pesanGalat(e)); } finally { setProses(false); }
+      }}>{proses ? 'Menyimpan…' : 'Simpan pelanggan'}</Button></>}>
       <div className="space-y-4">
-        <Input label="Nama" value={f.nama} error={err} onChange={(e) => setF({ ...f, nama: e.target.value })} />
+        <Input label="Nama" value={f.nama} error={err && !f.nama.trim() ? err : undefined} onChange={(e) => setF({ ...f, nama: e.target.value })} />
         <Input label="Nomor telepon" type="tel" inputMode="tel" value={f.telepon} onChange={(e) => setF({ ...f, telepon: e.target.value })} placeholder="08…" />
         <Input label="Alamat" value={f.alamat} onChange={(e) => setF({ ...f, alamat: e.target.value })} />
         <Select label="Jenis pelanggan" value={f.jenis} onChange={(e) => setF({ ...f, jenis: e.target.value as JenisPelanggan })} opsi={[{ nilai: 'eceran', label: 'Eceran' }, { nilai: 'partai', label: 'Partai (pesanan besar)' }]} />
+        {err && f.nama.trim() && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{err}</p>}
       </div>
     </Modal>
   );

@@ -1,6 +1,9 @@
-import { useState } from 'react';
-import { Phone, MapPin, User } from 'lucide-react';
-import { useData } from '@/context/DataContext';
+import { useEffect, useState } from 'react';
+import { Phone, MapPin, User, Plus } from 'lucide-react';
+import { useData, pesanGalat } from '@/context/DataContext';
+import { useToast } from '@/context/ToastContext';
+import { Input } from '@/components/ui/FormInput';
+import { EmptyState } from '@/components/ui/States';
 import { useNav } from '@/context/NavContext';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -9,13 +12,15 @@ import { DataTable, type Kolom } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { CatatanDemo } from '@/components/ui/States';
+import { Catatan } from '@/components/ui/States';
 import type { Supplier as TSupplier } from '@/types';
 import { dibayarPembelian, nilaiPembelian, utangPembelian, uangMukaPembelian } from '@/utils/finance';
 import { rupiah, tanggalPendek } from '@/utils/format';
 
 export default function Supplier() {
-  const { supplier, pembelian } = useData();
+  const { supplier, pembelian, simpanSupplier } = useData();
+  const toast = useToast();
+  const [form, setForm] = useState(false);
   const { buka } = useNav();
   const [q, setQ] = useState('');
   const [detail, setDetail] = useState<TSupplier | null>(null);
@@ -34,13 +39,18 @@ export default function Supplier() {
   const s = detail ? st(detail.id) : null;
   return (
     <>
-      <PageHeader judul="Supplier" sub="Pemasok daging dan produk kemasan." aksi={<Button varian="garis" onClick={() => buka('pembelian')}>Lihat pembelian</Button>} />
+      <PageHeader judul="Supplier" sub="Pemasok daging dan produk kemasan." aksi={<>
+        <Button varian="garis" onClick={() => buka('pembelian')}>Lihat pembelian</Button>
+        <Button ikon={<Plus className="h-4 w-4" />} onClick={() => setForm(true)}>Tambah supplier</Button>
+      </>} />
       <Card className="overflow-hidden">
         <FilterBar><SearchInput value={q} onChange={setQ} placeholder="Cari supplier…" className="sm:w-72" /></FilterBar>
+        {supplier.length === 0 ? <EmptyState judul="Belum ada supplier" pesan="Tambahkan pemasok sebelum membuat pembelian." aksi={<Button onClick={() => setForm(true)}>Tambah supplier</Button>} /> :
         <DataTable data={supplier.filter((x) => !q || `${x.nama} ${x.kontak}`.toLowerCase().includes(q.toLowerCase()))} kolom={kolom} rowKey={(x) => x.id} onRowClick={setDetail}
-          kartuMobile={(x) => <div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{x.nama}</p><p className="text-xs text-gray-500">{x.kontak}, {x.telepon}</p></div><div className="text-right"><p className="text-[11px] text-gray-500">Utang</p><p className="num text-sm font-bold text-red-600">{rupiah(st(x.id).utang)}</p></div></div>} />
+          kartuMobile={(x) => <div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{x.nama}</p><p className="text-xs text-gray-500">{x.kontak}, {x.telepon}</p></div><div className="text-right"><p className="text-[11px] text-gray-500">Utang</p><p className="num text-sm font-bold text-red-600">{rupiah(st(x.id).utang)}</p></div></div>} />}
       </Card>
-      <div className="mt-4"><CatatanDemo>Data supplier contoh.</CatatanDemo></div>
+      <div className="mt-4"><Catatan>Data supplier tersimpan di Google Sheets.</Catatan></div>
+      <FormSupplier buka={form} onTutup={() => setForm(false)} onSimpan={async (x) => { await simpanSupplier(x); setForm(false); toast({ jenis: 'sukses', judul: 'Supplier tersimpan', pesan: x.nama }); }} />
       <Modal buka={!!detail} onTutup={() => setDetail(null)} judul={detail?.nama ?? ''} sub={detail?.komoditas} lebar="md">
         {detail && s && (
           <>
@@ -65,5 +75,30 @@ export default function Supplier() {
         )}
       </Modal>
     </>
+  );
+}
+
+function FormSupplier({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (s: Omit<TSupplier, 'id'>) => Promise<void> }) {
+  const KOSONG = { nama: '', kontak: '', telepon: '', alamat: '', komoditas: '' };
+  const [f, setF] = useState(KOSONG);
+  const [err, setErr] = useState('');
+  const [proses, setProses] = useState(false);
+  useEffect(() => { if (buka) { setF(KOSONG); setErr(''); } }, [buka]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Modal buka={buka} onTutup={onTutup} judul="Tambah supplier" lebar="sm"
+      footer={<><Button varian="garis" onClick={onTutup} disabled={proses}>Batal</Button><Button disabled={proses} onClick={async () => {
+        if (!f.nama.trim()) return setErr('Nama supplier wajib diisi.');
+        setProses(true); setErr('');
+        try { await onSimpan(f); } catch (e) { setErr(pesanGalat(e)); } finally { setProses(false); }
+      }}>{proses ? 'Menyimpan…' : 'Simpan supplier'}</Button></>}>
+      <div className="space-y-4">
+        <Input label="Nama supplier" value={f.nama} onChange={(e) => setF({ ...f, nama: e.target.value })} placeholder="mis. CV Sumber Sapi" />
+        <Input label="Nama kontak" value={f.kontak} onChange={(e) => setF({ ...f, kontak: e.target.value })} />
+        <Input label="Telepon" type="tel" inputMode="tel" value={f.telepon} onChange={(e) => setF({ ...f, telepon: e.target.value })} />
+        <Input label="Alamat" value={f.alamat} onChange={(e) => setF({ ...f, alamat: e.target.value })} />
+        <Input label="Komoditas" value={f.komoditas} onChange={(e) => setF({ ...f, komoditas: e.target.value })} placeholder="mis. Daging sapi" />
+        {err && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{err}</p>}
+      </div>
+    </Modal>
   );
 }

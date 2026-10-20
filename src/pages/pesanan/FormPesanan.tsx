@@ -4,20 +4,21 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Select, Textarea } from '@/components/ui/FormInput';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { useData } from '@/context/DataContext';
-import { HARI_INI } from '@/data/dummy';
-import type { PesananPartai, StatusPesanan } from '@/types';
+import { useData, pesanGalat } from '@/context/DataContext';
+import { hariIni, tambahHari } from '@/utils/waktu';
 import { nilaiBaris, targetDP } from '@/utils/calc';
 import { angka, rupiah } from '@/utils/format';
 
 interface Baris { produkId: string; qty: string; harga: string }
 const num = (s: string) => parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
 
-export function FormPesanan({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (p: PesananPartai) => void }) {
-  const { produk, pelanggan, pesanan, pengaturan } = useData();
-  const partai = pelanggan.filter((c) => c.jenis === 'partai');
+export function FormPesanan({ buka, onTutup, onSelesai }: { buka: boolean; onTutup: () => void; onSelesai: (id: string, status: 'draft' | 'menunggu_dp') => void }) {
+  const { produk, pelanggan, pengaturan, buatPesanan } = useData();
+  const [proses, setProses] = useState(false);
+  // Semua pelanggan terdaftar (partai diurutkan lebih dulu); Pelanggan Umum tidak bisa memesan partai
+  const partai = pelanggan.filter((c) => c.id !== 'PLG-0000').sort((a, b) => (a.jenis === b.jenis ? a.nama.localeCompare(b.nama) : a.jenis === 'partai' ? -1 : 1));
   const [pelangganId, setPelangganId] = useState(partai[0]?.id ?? '');
-  const [kirim, setKirim] = useState('2026-10-15');
+  const [kirim, setKirim] = useState(tambahHari(hariIni(), 2));
   const [alamat, setAlamat] = useState('');
   const [catatan, setCatatan] = useState('');
   const [baris, setBaris] = useState<Baris[]>([]);
@@ -25,26 +26,32 @@ export function FormPesanan({ buka, onTutup, onSimpan }: { buka: boolean; onTutu
 
   useEffect(() => {
     if (!buka) return;
-    const p = produk.find((x) => x.id === 'p3')!;
+    const p = produk.find((x) => x.aktif);
     setPelangganId(partai[0]?.id ?? '');
     setAlamat(partai[0]?.alamat ?? '');
-    setKirim('2026-10-15'); setCatatan(''); setSalah('');
-    setBaris([{ produkId: p.id, qty: '10', harga: String(p.hargaJual) }]);
+    setKirim(tambahHari(hariIni(), 2)); setCatatan(''); setSalah('');
+    setBaris(p ? [{ produkId: p.id, qty: '', harga: String(p.hargaJual) }] : []);
   }, [buka]);
 
   const items = baris.map((b) => ({ produkId: b.produkId, qty: num(b.qty), harga: num(b.harga) })).filter((i) => i.qty > 0);
   const total = items.reduce((s, i) => s + nilaiBaris(i.qty, i.harga), 0);
   const dp = targetDP(total, pengaturan.dpPersen / 100);
 
-  const simpan = (status: StatusPesanan) => {
-    if (!pelangganId) return setSalah('Pilih pelanggan.');
+  const simpan = async (status: 'draft' | 'menunggu_dp') => {
+    if (!pelangganId) return setSalah('Pilih pelanggan. Tambahkan pelanggan partai di menu Pelanggan bila belum ada.');
     if (!items.length) return setSalah('Tambahkan minimal satu produk dengan berat/jumlah.');
-    const urut = pesanan.filter((p) => p.tanggal === HARI_INI).length + 1;
-    onSimpan({
-      id: `PP-${HARI_INI.replace(/-/g, '')}-${String(urut).padStart(2, '0')}`,
-      tanggal: HARI_INI, pelangganId, items, pembayaran: [], jadwalKirim: kirim, alamatKirim: alamat || '-',
-      catatan: catatan || undefined, status,
-    });
+    setProses(true); setSalah('');
+    try {
+      const id = await buatPesanan({
+        id_pelanggan: pelangganId, jadwal_kirim: kirim, alamat_kirim: alamat, catatan, status,
+        items: items.map((i) => ({ id_produk: i.produkId, qty: i.qty, harga: i.harga })),
+      });
+      onSelesai(id, status);
+    } catch (e) {
+      setSalah(pesanGalat(e));
+    } finally {
+      setProses(false);
+    }
   };
 
   const ubah = (i: number, patch: Partial<Baris>) => setBaris((l) => l.map((b, k) => (k === i ? { ...b, ...patch } : b)));
@@ -52,13 +59,13 @@ export function FormPesanan({ buka, onTutup, onSimpan }: { buka: boolean; onTutu
   return (
     <Modal buka={buka} onTutup={onTutup} judul="Buat pesanan partai" sub={`DP ${pengaturan.dpPersen}% dari total pesanan wajib dibayar sebelum diproses`} lebar="lg"
       footer={<>
-        <Button varian="garis" onClick={() => simpan('draft')}>Simpan draft</Button>
-        <Button onClick={() => simpan('menunggu_dp')}>Buat dan tagih DP</Button>
+        <Button varian="garis" disabled={proses} onClick={() => void simpan('draft')}>Simpan draft</Button>
+        <Button disabled={proses} onClick={() => void simpan('menunggu_dp')}>{proses ? 'Menyimpan…' : 'Buat dan tagih DP'}</Button>
       </>}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Select label="Pelanggan" value={pelangganId} onChange={(e) => { setPelangganId(e.target.value); setAlamat(pelanggan.find((c) => c.id === e.target.value)?.alamat ?? ''); }}
           opsi={partai.map((c) => ({ nilai: c.id, label: c.nama }))} />
-        <DatePicker label="Jadwal kirim" value={kirim} min={HARI_INI} onChange={setKirim} />
+        <DatePicker label="Jadwal kirim" value={kirim} min={hariIni()} onChange={setKirim} />
         <div className="sm:col-span-2">
           <label className="label" htmlFor="alamat">Alamat pengiriman</label>
           <input id="alamat" className="input" value={alamat} onChange={(e) => setAlamat(e.target.value)} />
@@ -67,7 +74,7 @@ export function FormPesanan({ buka, onTutup, onSimpan }: { buka: boolean; onTutu
 
       <div className="mt-5 flex items-center justify-between">
         <p className="text-sm font-bold">Item pesanan</p>
-        <Button varian="hantu" ukur="sm" ikon={<Plus className="h-4 w-4" />} onClick={() => setBaris((l) => [...l, { produkId: produk[0].id, qty: '', harga: String(produk[0].hargaJual) }])}>Tambah item</Button>
+        <Button varian="hantu" ukur="sm" ikon={<Plus className="h-4 w-4" />} disabled={!produk.length} onClick={() => setBaris((l) => [...l, { produkId: produk[0].id, qty: '', harga: String(produk[0].hargaJual) }])}>Tambah item</Button>
       </div>
       <div className="mt-2 space-y-2">
         {baris.map((b, i) => {

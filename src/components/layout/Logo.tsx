@@ -1,6 +1,7 @@
-import { USAHA } from '@/data/dummy';
+import { useData } from '@/context/DataContext';
 
 export function Logo({ kecil }: { kecil?: boolean }) {
+  const { pengaturan } = useData();
   return (
     <div className="flex items-center gap-2.5">
       <span className={`grid shrink-0 place-items-center rounded-xl bg-brand-700 ${kecil ? 'h-8 w-8' : 'h-10 w-10'}`}>
@@ -13,8 +14,8 @@ export function Logo({ kecil }: { kecil?: boolean }) {
       </span>
       {!kecil && (
         <div className="leading-tight">
-          <p className="text-[16px] font-extrabold tracking-tight text-white">{USAHA.nama}</p>
-          <p className="text-[11px] text-white/55">{USAHA.tagline}</p>
+          <p className="text-[16px] font-extrabold tracking-tight text-white">{pengaturan.namaUsaha}</p>
+          <p className="text-[11px] text-white/55">{pengaturan.tagline}</p>
         </div>
       )}
     </div>

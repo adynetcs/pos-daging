@@ -35,7 +35,7 @@ export const tunaiTrx = (t: TransaksiEceran) => totalTrx(t) - tempoTrx(t);
 
 /* ---------- Pesanan partai ---------- */
 export const totalPesanan = (p: PesananPartai) => totalItems(p.items);
-export const dpPesanan = (p: PesananPartai, persen?: number) => targetDP(totalPesanan(p), persen);
+export const dpPesanan = (p: PesananPartai, persen?: number) => targetDP(totalPesanan(p), p.dpPersen !== undefined ? p.dpPersen / 100 : persen);
 export const dibayarPesanan = (p: PesananPartai) => jumlah(p.pembayaran, (b) => b.jumlah);
 export const sisaPesanan = (p: PesananPartai) =>
   p.status === 'batal' ? 0 : Math.max(0, totalPesanan(p) - dibayarPesanan(p));
@@ -122,13 +122,15 @@ export function barisPenjualan(d: DataUsaha, p?: Periode): BarisPenjualan[] {
       const nilai = nilaiBaris(i.qty, i.harga);
       // Diskon dialokasikan proporsional ke tiap baris
       const potongan = sub > 0 ? Math.round((t.diskon * nilai) / sub) : 0;
-      out.push({ tanggal: t.tanggal.slice(0, 10), produkId: i.produkId, qty: i.qty, nilai: nilai - potongan, hpp: nilaiBaris(i.qty, hppOf(i.produkId)), sumber: 'eceran' });
+      out.push({ tanggal: t.tanggal.slice(0, 10), produkId: i.produkId, qty: i.qty, nilai: nilai - potongan, hpp: nilaiBaris(i.qty, i.hpp ?? hppOf(i.produkId)), sumber: 'eceran' });
     }
   }
   for (const ps of d.pesanan) {
-    if (ps.status !== 'selesai' || !dalam(ps.jadwalKirim, p)) continue;
+    // Omzet partai diakui pada tanggal barang diserahkan (selesai), bukan tanggal jadwal kirim
+    const tglAkui = ps.selesaiPada ?? ps.jadwalKirim;
+    if (ps.status !== 'selesai' || !dalam(tglAkui, p)) continue;
     for (const i of ps.items) {
-      out.push({ tanggal: ps.jadwalKirim, produkId: i.produkId, qty: i.qty, nilai: nilaiBaris(i.qty, i.harga), hpp: nilaiBaris(i.qty, hppOf(i.produkId)), sumber: 'partai' });
+      out.push({ tanggal: tglAkui, produkId: i.produkId, qty: i.qty, nilai: nilaiBaris(i.qty, i.harga), hpp: nilaiBaris(i.qty, i.hpp ?? hppOf(i.produkId)), sumber: 'partai' });
     }
   }
   return out;
@@ -172,7 +174,7 @@ export function ringkasanKas(d: DataUsaha, p?: Periode) {
 /** Piutang = sisa tagihan pesanan yang sudah diserahkan + transaksi kasir tempo. */
 export function piutang(d: DataUsaha) {
   const dariPesanan = d.pesanan.filter((p) => p.status === 'selesai' && sisaPesanan(p) > 0)
-    .map((p) => ({ ref: p.id, pelangganId: p.pelangganId, tanggal: p.jadwalKirim, nilai: sisaPesanan(p), sumber: 'Pesanan partai' }));
+    .map((p) => ({ ref: p.id, pelangganId: p.pelangganId, tanggal: p.selesaiPada ?? p.jadwalKirim, nilai: sisaPesanan(p), sumber: 'Pesanan partai' }));
   const dariKasir = d.transaksi.filter((t) => tempoTrx(t) > 0)
     .map((t) => ({ ref: t.id, pelangganId: t.pelangganId, tanggal: t.tanggal.slice(0, 10), nilai: tempoTrx(t), sumber: 'Kasir (tempo)' }));
   const semua = [...dariPesanan, ...dariKasir].sort((a, b) => b.tanggal.localeCompare(a.tanggal));

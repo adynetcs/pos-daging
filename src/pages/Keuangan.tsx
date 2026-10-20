@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PiggyBank, ArrowDownToLine, ArrowUpFromLine, Wallet, Landmark, Plus, Info, HandCoins, Receipt } from 'lucide-react';
-import { useData, useLookup } from '@/context/DataContext';
+import { useData, useLookup, pesanGalat } from '@/context/DataContext';
 import { useToast } from '@/context/ToastContext';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -12,8 +12,8 @@ import { BarChart } from '@/components/charts/Charts';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/FormInput';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { CatatanDemo } from '@/components/ui/States';
-import { HARI_INI } from '@/data/dummy';
+import { Catatan } from '@/components/ui/States';
+import { awalBulan, hariIni } from '@/utils/waktu';
 import type { BarisKas, MutasiModal, Pengeluaran, SumberKas } from '@/types';
 import * as F from '@/utils/finance';
 import { angka, rupiah, tanggalLabel, tanggalPendek } from '@/utils/format';
@@ -31,7 +31,6 @@ export const SUMBER_KAS: Record<SumberKas, { label: string; nada: NadaBadge }> =
   pengeluaran: { label: 'Beban operasional', nada: 'merah' },
 };
 
-const PERIODE = '1–12 Oktober 2026';
 
 export default function Keuangan() {
   const d = useData();
@@ -42,9 +41,12 @@ export default function Keuangan() {
   const [formModal, setFormModal] = useState(false);
   const [formBeban, setFormBeban] = useState(false);
 
-  const lr = F.labaRugi(d);
-  const md = F.ringkasanModal(d);
-  const kas = F.ringkasanKas(d);
+  const [modeP, setModeP] = useState<'bulan' | 'semua'>('bulan');
+  const periode: F.Periode | undefined = modeP === 'bulan' ? { dari: awalBulan(), sampai: hariIni() } : undefined;
+  const labelPeriode = periode ? `${tanggalPendek(periode.dari)} – ${tanggalPendek(periode.sampai)}` : 'sejak awal pencatatan';
+  const lr = F.labaRugi(d, periode);
+  const md = F.ringkasanModal(d, periode);
+  const kas = F.ringkasanKas(d, periode);
   const pi = F.piutang(d);
   const ut = F.utangSupplier(d);
   const rek = F.rekonsiliasiKas(d);
@@ -53,7 +55,7 @@ export default function Keuangan() {
     let s = 0;
     return F.bukuKas(d).map((b) => ({ ...b, saldo: (s += b.masuk - b.keluar) })).reverse();
   }, [d]);
-  const harian = useMemo(() => F.rentangHari(HARI_INI, 12).map((h) => {
+  const harian = useMemo(() => F.rentangHari(hariIni(), 12).map((h) => {
     const r = F.bukuKas(d).filter((b) => b.tanggal.startsWith(h));
     return { label: tanggalLabel(h), nilai: [r.reduce((s, x) => s + x.masuk, 0), r.reduce((s, x) => s + x.keluar, 0)] };
   }), [d]);
@@ -69,7 +71,7 @@ export default function Keuangan() {
 
   return (
     <>
-      <PageHeader judul="Keuangan" sub={`Periode ${PERIODE}`}
+      <PageHeader judul="Keuangan" sub={`Periode ${labelPeriode}. Saldo kas selalu posisi saat ini.`}
         aksi={<>
           <Button varian="garis" ikon={<PiggyBank className="h-4 w-4" />} onClick={() => setFormModal(true)}>Catat modal</Button>
           <Button ikon={<Plus className="h-4 w-4" />} onClick={() => setFormBeban(true)}>Catat pengeluaran</Button>
@@ -84,6 +86,9 @@ export default function Keuangan() {
         </div>
       </Card>
 
+      {(tab === 'ringkasan' || tab === 'labarugi') && (
+        <div className="mb-4"><FilterChips label="Periode" value={modeP} onChange={setModeP} opsi={[{ nilai: 'bulan', label: 'Bulan ini' }, { nilai: 'semua', label: 'Semua waktu' }]} /></div>
+      )}
       {tab === 'ringkasan' && (
         <div className="space-y-4">
           <div>
@@ -114,7 +119,7 @@ export default function Keuangan() {
               <div className="px-3 pb-4"><BarChart data={harian} seri={[{ nama: 'Masuk', warna: '#16A34A' }, { nama: 'Keluar', warna: '#B23A45' }]} /></div>
             </Card>
             <Card className="xl:col-span-2">
-              <CardHeader judul="Kenapa saldo kas berbeda dari laba?" sub="Rekonsiliasi saldo kas akhir" />
+              <CardHeader judul="Kenapa saldo kas berbeda dari laba?" sub="Rekonsiliasi saldo kas saat ini (seluruh periode)" />
               <ul className="divide-y divide-gray-100 border-t border-gray-100 text-sm">
                 {rek.baris.map((b) => (
                   <li key={b.label} className="flex items-start justify-between gap-3 px-5 py-2.5">
@@ -241,12 +246,12 @@ export default function Keuangan() {
         </Card>
       )}
 
-      {tab === 'labarugi' && <LabaRugi />}
+      {tab === 'labarugi' && <LabaRugi periode={periode} />}
 
-      <div className="mt-4"><CatatanDemo>Angka keuangan dihitung dari data contoh. Ini bukan laporan keuangan resmi.</CatatanDemo></div>
+      <div className="mt-4"><Catatan>Dihitung dari data Google Sheets dengan pencatatan sederhana untuk UMKM. Bukan laporan keuangan resmi/audit.</Catatan></div>
 
-      <FormModal buka={formModal} onTutup={() => setFormModal(false)} onSimpan={(m) => { d.tambahModal(m); setFormModal(false); toast({ jenis: 'sukses', judul: 'Modal dicatat (demo)', pesan: `${m.jenis === 'penarikan' ? 'Penarikan' : 'Modal masuk'} ${rupiah(m.jumlah)}.` }); }} />
-      <FormBeban buka={formBeban} onTutup={() => setFormBeban(false)} onSimpan={(e) => { d.tambahPengeluaran(e); setFormBeban(false); toast({ jenis: 'sukses', judul: 'Pengeluaran dicatat (demo)', pesan: `${e.kategori}: ${rupiah(e.jumlah)}.` }); }} />
+      <FormModal buka={formModal} adaModalAwal={d.modal.some((m) => m.jenis === 'awal')} onTutup={() => setFormModal(false)} onSimpan={async (m) => { await d.tambahModal(m); setFormModal(false); toast({ jenis: 'sukses', judul: 'Modal tersimpan', pesan: `${m.jenis === 'penarikan' ? 'Penarikan' : m.jenis === 'awal' ? 'Modal awal' : 'Modal masuk'} ${rupiah(m.jumlah)}.` }); }} />
+      <FormBeban buka={formBeban} onTutup={() => setFormBeban(false)} onSimpan={async (e) => { await d.tambahPengeluaran(e); setFormBeban(false); toast({ jenis: 'sukses', judul: 'Pengeluaran tersimpan', pesan: `${e.kategori}: ${rupiah(e.jumlah)}.` }); }} />
     </>
   );
 }
@@ -262,7 +267,7 @@ export function LabaRugi({ periode }: { periode?: F.Periode }) {
   );
   return (
     <Card className="mx-auto max-w-2xl overflow-hidden">
-      <CardHeader judul="Laporan laba rugi" sub={periode ? `${tanggalPendek(periode.dari)} – ${tanggalPendek(periode.sampai)}` : PERIODE} />
+      <CardHeader judul="Laporan laba rugi" sub={periode ? `${tanggalPendek(periode.dari)} – ${tanggalPendek(periode.sampai)}` : 'Sejak awal pencatatan'} />
       <div className="border-t border-gray-100 pb-2">
         {baris('Pendapatan (omzet)', lr.omzet, { tebal: true })}
         {baris('Penjualan eceran (setelah diskon)', lr.omzetEceran, { inden: true })}
@@ -280,40 +285,66 @@ export function LabaRugi({ periode }: { periode?: F.Periode }) {
   );
 }
 
-function FormModal({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (m: MutasiModal) => void }) {
-  const [jenis, setJenis] = useState<'tambahan' | 'penarikan'>('tambahan');
-  const [tgl, setTgl] = useState(HARI_INI);
+type InputModal = { jenis: MutasiModal['jenis']; tanggal: string; jumlah: number; keterangan: string };
+function FormModal({ buka, adaModalAwal, onTutup, onSimpan }: { buka: boolean; adaModalAwal: boolean; onTutup: () => void; onSimpan: (m: InputModal) => Promise<void> }) {
+  const [jenis, setJenis] = useState<MutasiModal['jenis']>('tambahan');
+  const [tgl, setTgl] = useState(hariIni());
   const [n, setN] = useState('');
   const [ket, setKet] = useState('');
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
+  useEffect(() => {
+    if (!buka) return;
+    // Modal awal Rp7.000.000 hanya usulan nilai rencana; pemilik tetap bisa mengubahnya.
+    setJenis(adaModalAwal ? 'tambahan' : 'awal'); setN(adaModalAwal ? '' : '7000000'); setKet(''); setTgl(hariIni()); setGalat('');
+  }, [buka, adaModalAwal]);
   const v = parseInt(n.replace(/\D/g, ''), 10) || 0;
   return (
-    <Modal buka={buka} onTutup={onTutup} judul="Catat modal" sub="Setoran atau penarikan oleh pemilik" lebar="sm"
-      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button disabled={!v} onClick={() => { onSimpan({ id: `MD-${Date.now().toString().slice(-4)}`, tanggal: tgl, jenis, jumlah: v, keterangan: ket || (jenis === 'penarikan' ? 'Penarikan pemilik' : 'Setoran modal') }); setN(''); setKet(''); }}>Simpan</Button></>}>
+    <Modal buka={buka} onTutup={onTutup} judul="Catat modal" sub="Uang pemilik yang masuk atau ditarik dari usaha" lebar="sm"
+      footer={<><Button varian="garis" onClick={onTutup} disabled={proses}>Batal</Button><Button disabled={!v || proses} onClick={async () => {
+        setProses(true); setGalat('');
+        try { await onSimpan({ tanggal: tgl, jenis, jumlah: v, keterangan: ket || (jenis === 'penarikan' ? 'Penarikan pemilik' : jenis === 'awal' ? 'Modal awal' : 'Setoran modal') }); }
+        catch (e) { setGalat(pesanGalat(e)); } finally { setProses(false); }
+      }}>{proses ? 'Menyimpan…' : 'Simpan'}</Button></>}>
       <div className="space-y-4">
-        <Select label="Jenis" value={jenis} onChange={(e) => setJenis(e.target.value as 'tambahan' | 'penarikan')} opsi={[{ nilai: 'tambahan', label: 'Modal masuk (setoran)' }, { nilai: 'penarikan', label: 'Penarikan modal (prive)' }]} />
-        <DatePicker label="Tanggal" value={tgl} onChange={setTgl} />
-        <Input label="Jumlah" awalan="Rp" inputMode="numeric" value={v ? angka(v) : ''} onChange={(e) => setN(e.target.value)} />
+        <Select label="Jenis" value={jenis} onChange={(e) => setJenis(e.target.value as MutasiModal['jenis'])}
+          opsi={[...(adaModalAwal ? [] : [{ nilai: 'awal', label: 'Modal awal' }]), { nilai: 'tambahan', label: 'Modal masuk (setoran)' }, { nilai: 'penarikan', label: 'Penarikan modal (prive)' }]} />
+        <DatePicker label="Tanggal" value={tgl} max={hariIni()} onChange={setTgl} />
+        <Input label="Jumlah" awalan="Rp" inputMode="numeric" value={v ? angka(v) : ''} onChange={(e) => setN(e.target.value)}
+          bantuan={jenis === 'awal' ? 'Rencana modal awal Rp7.000.000. Ubah sesuai uang yang benar-benar disetor.' : undefined} />
         <Input label="Keterangan" value={ket} onChange={(e) => setKet(e.target.value)} placeholder="Opsional" />
+        {galat && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{galat}</p>}
       </div>
     </Modal>
   );
 }
 
-function FormBeban({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (e: Pengeluaran) => void }) {
+type InputBeban = { kategori: Pengeluaran['kategori']; tanggal: string; jumlah: number; keterangan: string; metode: string };
+function FormBeban({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (e: InputBeban) => Promise<void> }) {
   const [kat, setKat] = useState<Pengeluaran['kategori']>('Transportasi');
-  const [tgl, setTgl] = useState(HARI_INI);
+  const [tgl, setTgl] = useState(hariIni());
   const [n, setN] = useState('');
   const [ket, setKet] = useState('');
+  const [metode, setMetode] = useState('tunai');
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
+  useEffect(() => { if (buka) { setN(''); setKet(''); setTgl(hariIni()); setGalat(''); } }, [buka]);
   const v = parseInt(n.replace(/\D/g, ''), 10) || 0;
   return (
     <Modal buka={buka} onTutup={onTutup} judul="Catat pengeluaran" sub="Beban operasional, bukan pembelian stok" lebar="sm"
-      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button disabled={!v || !ket} onClick={() => { onSimpan({ id: `EX-${Date.now().toString().slice(-4)}`, tanggal: tgl, kategori: kat, jumlah: v, keterangan: ket }); setN(''); setKet(''); }}>Simpan</Button></>}>
+      footer={<><Button varian="garis" onClick={onTutup} disabled={proses}>Batal</Button><Button disabled={!v || !ket || proses} onClick={async () => {
+        setProses(true); setGalat('');
+        try { await onSimpan({ tanggal: tgl, kategori: kat, jumlah: v, keterangan: ket, metode }); }
+        catch (e) { setGalat(pesanGalat(e)); } finally { setProses(false); }
+      }}>{proses ? 'Menyimpan…' : 'Simpan'}</Button></>}>
       <div className="space-y-4">
         <Select label="Kategori" value={kat} onChange={(e) => setKat(e.target.value as Pengeluaran['kategori'])}
           opsi={(['Sewa', 'Listrik & Air', 'Gaji', 'Kemasan', 'Transportasi', 'Lain-lain'] as const).map((k) => ({ nilai: k, label: k }))} />
-        <DatePicker label="Tanggal" value={tgl} onChange={setTgl} />
+        <DatePicker label="Tanggal" value={tgl} max={hariIni()} onChange={setTgl} />
         <Input label="Jumlah" awalan="Rp" inputMode="numeric" value={v ? angka(v) : ''} onChange={(e) => setN(e.target.value)} />
         <Input label="Keterangan" value={ket} onChange={(e) => setKet(e.target.value)} placeholder="Mis. BBM pengiriman" />
+        <Select label="Dibayar dengan" value={metode} onChange={(e) => setMetode(e.target.value)} opsi={[{ nilai: 'tunai', label: 'Tunai' }, { nilai: 'transfer', label: 'Transfer' }, { nilai: 'qris', label: 'QRIS' }]} />
+        {galat && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{galat}</p>}
       </div>
     </Modal>
   );

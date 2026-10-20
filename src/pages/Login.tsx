@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react';
 import { Loader2, LockKeyhole } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
-import { USAHA } from '@/data/dummy';
 
 export default function Login() {
   const { login, galat: galatAwal } = useAuth();
@@ -31,7 +30,7 @@ export default function Login() {
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center text-white">
           <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-700"><LockKeyhole className="h-7 w-7" /></span>
-          <h1 className="mt-4 text-2xl font-extrabold tracking-tight">{USAHA.nama}</h1>
+          <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Steak Hook Premium</h1>
           <p className="mt-1 text-sm text-white/60">Masuk untuk melanjutkan</p>
         </div>
         <form onSubmit={kirim} className="rounded-2xl bg-white p-5 shadow-pop">

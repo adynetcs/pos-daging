@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Boxes, Weight, AlertTriangle, PackageX, PackagePlus, SlidersHorizontal, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
-import { useData, useLookup } from '@/context/DataContext';
+import { useData, useLookup, pesanGalat } from '@/context/DataContext';
 import { useToast } from '@/context/ToastContext';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -12,9 +12,10 @@ import { Badge, StokBadge, statusStok, type NadaBadge } from '@/components/ui/St
 import { ProductThumb, LABEL_KATEGORI } from '@/components/ui/ProductThumb';
 import { Modal } from '@/components/ui/Modal';
 import { Select, Textarea } from '@/components/ui/FormInput';
-import { EmptyState, CatatanDemo } from '@/components/ui/States';
+import { EmptyState, Catatan } from '@/components/ui/States';
 import { ProgressBar } from '@/components/charts/Charts';
-import { HARI_INI, SEKARANG } from '@/data/dummy';
+import { hariIni, selisihHari } from '@/utils/waktu';
+import { useAuth } from '@/context/AuthContext';
 import type { BatchStok, JenisMutasi, MutasiStok, Produk } from '@/types';
 import { barisPenjualan, nilaiPersediaan } from '@/utils/finance';
 import { angka, berat, qtySatuan, rupiah, tanggalJam, tanggalPendek } from '@/utils/format';
@@ -40,6 +41,8 @@ export default function Stok() {
   const [fs, setFs] = useState<FStatus>('semua');
   const [adj, setAdj] = useState(false);
   const [terima, setTerima] = useState(false);
+  const { pengguna } = useAuth();
+  const bolehUbah = pengguna?.peran !== 'kasir';
 
   const aktif = produk.filter((p) => p.aktif);
   const totalKg = aktif.filter((p) => p.satuan === 'kg').reduce((s, p) => s + p.stok, 0);
@@ -103,10 +106,10 @@ export default function Stok() {
   return (
     <>
       <PageHeader judul="Stok" sub="Persediaan dalam kg untuk daging timbang dan pcs untuk produk kemasan."
-        aksi={<>
-          <Button varian="garis" ikon={<SlidersHorizontal className="h-4 w-4" />} onClick={() => setAdj(true)}>Penyesuaian stok</Button>
-          <Button ikon={<PackagePlus className="h-4 w-4" />} onClick={() => setTerima(true)}>Terima barang</Button>
-        </>} />
+        aksi={bolehUbah ? <>
+          <Button varian="garis" ikon={<SlidersHorizontal className="h-4 w-4" />} onClick={() => setAdj(true)} disabled={!aktif.length}>Penyesuaian stok</Button>
+          <Button ikon={<PackagePlus className="h-4 w-4" />} onClick={() => setTerima(true)}>Terima barang{dipesan.length ? ` (${dipesan.length})` : ''}</Button>
+        </> : undefined} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Jenis produk aktif" nilai={aktif.length} ikon={Boxes} warna="abu" keterangan={`Nilai persediaan ${rupiah(nilaiPersediaan(d))}`} />
@@ -159,7 +162,7 @@ export default function Stok() {
         </Card>
 
         <Card className="self-start">
-          <CardHeader judul="Pergerakan stok timbang" sub="1–12 Oktober 2026, dalam kg" />
+          <CardHeader judul="Pergerakan stok timbang" sub="Sejak awal pencatatan, dalam kg" />
           <ul className="space-y-3.5 px-5 pb-5">
             {gerak.map((g) => (
               <li key={g.j}>
@@ -171,13 +174,13 @@ export default function Stok() {
           <p className="border-t border-gray-100 px-5 py-3 text-xs text-gray-500">Susut berat wajar terjadi pada daging segar (drip loss & trimming). Catat lewat Penyesuaian stok agar HPP akurat.</p>
         </Card>
       </div>
-      <div className="mt-4"><CatatanDemo>Data stok contoh. Penyesuaian dan penerimaan barang hanya mengubah data di memori browser.</CatatanDemo></div>
+      <div className="mt-4"><Catatan>Stok dihitung dari riwayat mutasi di Google Sheets. Sisa per batch diperkirakan dengan asumsi barang lama keluar lebih dulu.</Catatan></div>
 
-      <PenyesuaianModal buka={adj} onTutup={() => setAdj(false)} onSimpan={(m) => {
-        d.mutasi(m); setAdj(false);
-        const p = cari.produk(m.produkId)!;
-        toast({ jenis: 'sukses', judul: 'Penyesuaian dicatat (demo)', pesan: `${p.nama} ${m.qty > 0 ? '+' : '−'}${qtySatuan(Math.abs(m.qty), p.satuan)} (${MUTASI[m.jenis].label.toLowerCase()}).` });
-      }} />
+      {adj && <PenyesuaianModal onTutup={() => setAdj(false)} onSimpan={async (m) => {
+        await d.sesuaikanStok(m); setAdj(false);
+        const p = cari.produk(m.id_produk)!;
+        toast({ jenis: 'sukses', judul: 'Penyesuaian tersimpan', pesan: `${p.nama} ${m.qty > 0 ? '+' : '−'}${qtySatuan(Math.abs(m.qty), p.satuan)} (${MUTASI[m.jenis].label.toLowerCase()}).` });
+      }} />}
       <Modal buka={terima} onTutup={() => setTerima(false)} judul="Terima barang" sub="Pilih pembelian yang barangnya datang hari ini" lebar="md">
         {dipesan.length === 0 ? <EmptyState ikon={PackagePlus} judul="Tidak ada pembelian yang menunggu" pesan="Buat pembelian baru di menu Pembelian." /> : (
           <div className="space-y-4">{dipesan.map((b) => <TerimaForm key={b.id} id={b.id} onSelesai={() => setTerima(false)} />)}</div>
@@ -187,22 +190,29 @@ export default function Stok() {
   );
 }
 
-const sisaHari = (tgl: string) => Math.round((new Date(`${tgl}T00:00:00`).getTime() - new Date(`${HARI_INI}T00:00:00`).getTime()) / 86400000);
+const sisaHari = (tgl: string) => (tgl ? selisihHari(hariIni(), tgl) : 999);
 
-function PenyesuaianModal({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (m: MutasiStok) => void }) {
+type InputSesuai = { id_produk: string; jenis: 'rusak' | 'susut' | 'koreksi'; qty: number; catatan: string };
+function PenyesuaianModal({ onTutup, onSimpan }: { onTutup: () => void; onSimpan: (m: InputSesuai) => Promise<void> }) {
   const { produk } = useData();
-  const [pid, setPid] = useState('p1');
+  const [pid, setPid] = useState(() => produk.find((x) => x.aktif)?.id ?? '');
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
   const [jenis, setJenis] = useState<Exclude<JenisMutasi, 'masuk' | 'terjual'>>('susut');
   const [arah, setArah] = useState<1 | -1>(-1);
   const [qty, setQty] = useState('');
   const [catatan, setCatatan] = useState('');
-  const p = produk.find((x) => x.id === pid)!;
+  const p = produk.find((x) => x.id === pid);
   const n = parseFloat(qty.replace(',', '.')) || 0;
+  if (!p) return null;
   const delta = jenis === 'koreksi' ? n * arah : -n;
   const salah = n <= 0 ? '' : p.stok + delta < 0 ? `Stok tidak boleh minus (tersedia ${qtySatuan(p.stok, p.satuan)}).` : '';
   return (
-    <Modal buka={buka} onTutup={onTutup} judul="Penyesuaian stok" sub="Untuk barang rusak, susut berat, atau selisih stock opname" lebar="sm"
-      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button disabled={n <= 0 || !!salah} onClick={() => { onSimpan({ id: `MS-A${Date.now()}`, tanggal: SEKARANG, produkId: pid, jenis, qty: delta, referensi: 'ADJ-demo', catatan: catatan || undefined }); setQty(''); setCatatan(''); }}>Simpan penyesuaian</Button></>}>
+    <Modal buka onTutup={onTutup} judul="Penyesuaian stok" sub="Untuk barang rusak, susut berat, atau selisih stock opname" lebar="sm"
+      footer={<><Button varian="garis" onClick={onTutup} disabled={proses}>Batal</Button><Button disabled={n <= 0 || !!salah || proses} onClick={async () => {
+        setProses(true); setGalat('');
+        try { await onSimpan({ id_produk: pid, jenis, qty: delta, catatan }); } catch (e) { setGalat(pesanGalat(e)); } finally { setProses(false); }
+      }}>{proses ? 'Menyimpan…' : 'Simpan penyesuaian'}</Button></>}>
       <div className="space-y-4">
         <Select label="Produk" value={pid} onChange={(e) => setPid(e.target.value)} opsi={produk.filter((x) => x.aktif).map((x) => ({ nilai: x.id, label: `${x.nama} (${qtySatuan(x.stok, x.satuan)})` }))} />
         <div>
@@ -226,6 +236,7 @@ function PenyesuaianModal({ buka, onTutup, onSimpan }: { buka: boolean; onTutup:
           {salah ? <p className="mt-1 text-xs font-medium text-red-600">{salah}</p> : n > 0 && <p className="mt-1 text-xs text-gray-500">Stok menjadi {qtySatuan(p.stok + delta, p.satuan)}. Nilai {rupiah(Math.abs(delta) * p.hpp)} (HPP).</p>}
         </div>
         <Textarea label="Catatan" value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Mis. kemasan bocor, hasil opname" />
+        {galat && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{galat}</p>}
       </div>
     </Modal>
   );
@@ -237,6 +248,7 @@ function TerimaForm({ id, onSelesai }: { id: string; onSelesai: () => void }) {
   const toast = useToast();
   const pb = pembelian.find((x) => x.id === id)!;
   const [qty, setQty] = useState<Record<string, string>>(Object.fromEntries(pb.items.map((i) => [i.produkId, String(i.qtyPesan).replace('.', ',')])));
+  const [proses, setProses] = useState(false);
   return (
     <div className="rounded-xl border border-gray-200 p-4">
       <div className="flex items-start justify-between gap-2">
@@ -249,7 +261,7 @@ function TerimaForm({ id, onSelesai }: { id: string; onSelesai: () => void }) {
           const v = parseFloat((qty[i.produkId] ?? '').replace(',', '.')) || 0;
           return (
             <div key={i.produkId} className="grid grid-cols-[1fr_110px] items-center gap-3">
-              <div><p className="text-sm font-semibold">{p.nama}</p><p className="text-xs text-gray-500">Dipesan {qtySatuan(i.qtyPesan, p.satuan)}{v && v < i.qtyPesan ? `, selisih ${qtySatuan(i.qtyPesan - v, p.satuan)}` : ''}</p></div>
+              <div><p className="text-sm font-semibold">{p.nama}</p><p className="text-xs text-gray-500">Dipesan {qtySatuan(i.qtyPesan, p.satuan)}{v > 0 && v < i.qtyPesan ? `, selisih ${qtySatuan(i.qtyPesan - v, p.satuan)}` : ''}</p></div>
               <label className="relative"><span className="sr-only">Berat diterima {p.nama}</span>
                 <input inputMode="decimal" className="input num pr-9 text-right" value={qty[i.produkId]} onChange={(e) => setQty((s) => ({ ...s, [i.produkId]: e.target.value.replace(/[^0-9.,]/g, '') }))} />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">{p.satuan}</span></label>
@@ -257,11 +269,16 @@ function TerimaForm({ id, onSelesai }: { id: string; onSelesai: () => void }) {
           );
         })}
       </div>
-      <Button className="mt-4 w-full" onClick={() => {
-        terimaPembelian(id, Object.fromEntries(Object.entries(qty).map(([k, v]) => [k, parseFloat(v.replace(',', '.')) || 0])));
-        toast({ jenis: 'sukses', judul: 'Barang diterima (demo)', pesan: `Stok bertambah sesuai berat timbang. Sisa tagihan ${pb.id} kini tercatat sebagai utang supplier.` });
-        onSelesai();
-      }}>Konfirmasi berat diterima</Button>
+      <Button className="mt-4 w-full" disabled={proses} onClick={async () => {
+        setProses(true);
+        try {
+          await terimaPembelian(id, Object.fromEntries(Object.entries(qty).map(([k, v]) => [k, parseFloat(v.replace(',', '.')) || 0])));
+          toast({ jenis: 'sukses', judul: 'Barang diterima', pesan: `Stok bertambah sesuai berat timbang. Sisa tagihan ${pb.id} tercatat sebagai utang supplier.` });
+          onSelesai();
+        } catch (e) {
+          toast({ jenis: 'gagal', judul: 'Penerimaan belum tersimpan', pesan: pesanGalat(e) });
+        } finally { setProses(false); }
+      }}>{proses ? 'Menyimpan…' : 'Konfirmasi berat diterima'}</Button>
     </div>
   );
 }

@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useProdukSheet } from '@/hooks/useProdukSheet';
-import { IS_DEMO } from '@/services/api';
-import { LoadingState, EmptyState } from '@/components/ui/States';
+import { EmptyState } from '@/components/ui/States';
 import { Plus, Pencil } from 'lucide-react';
-import { useData } from '@/context/DataContext';
+import { useData, pesanGalat } from '@/context/DataContext';
 import { useToast } from '@/context/ToastContext';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -16,7 +14,7 @@ import { Badge, StokBadge } from '@/components/ui/StatusBadge';
 import { ProductThumb, LABEL_KATEGORI } from '@/components/ui/ProductThumb';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select, Toggle } from '@/components/ui/FormInput';
-import { CatatanDemo } from '@/components/ui/States';
+import { Catatan } from '@/components/ui/States';
 import type { Kategori, Produk as TProduk } from '@/types';
 import { angka, qtySatuan, rupiah } from '@/utils/format';
 
@@ -25,10 +23,9 @@ const margin = (p: TProduk) => (p.hargaJual ? (p.hargaJual - p.hpp) / p.hargaJua
 
 export default function Produk() {
   const data = useData();
-  const sheet = useProdukSheet();
   const { pengguna } = useAuth();
   const bolehUbah = pengguna!.peran !== 'kasir';
-  const produk = IS_DEMO ? data.produk : sheet.daftar;
+  const produk = data.produk;
   const toast = useToast();
   const [q, setQ] = useState('');
   const [k, setK] = useState<FK>('semua');
@@ -53,7 +50,7 @@ export default function Produk() {
     <>
       <PageHeader judul="Produk" sub={`${produk.filter((p) => p.aktif).length} produk aktif dari ${produk.length} terdaftar.`}
         aksi={<>
-          {!IS_DEMO && <Button varian="garis" ikon={<RefreshCw className="h-4 w-4" />} onClick={() => void sheet.muatUlang()}>Muat ulang</Button>}
+          <Button varian="garis" ikon={<RefreshCw className={`h-4 w-4 ${data.memuatUlang ? 'animate-spin' : ''}`} />} disabled={data.memuatUlang} onClick={() => data.muatUlang().catch((e: Error) => toast({ jenis: 'gagal', judul: 'Gagal memuat ulang', pesan: e.message }))}>Muat ulang</Button>
           {bolehUbah && <Button ikon={<Plus className="h-4 w-4" />} onClick={() => setEdit('baru')}>Tambah produk</Button>}
         </>} />
       <Card className="overflow-hidden">
@@ -61,9 +58,7 @@ export default function Produk() {
           <SearchInput value={q} onChange={setQ} placeholder="Cari nama, SKU, atau potongan…" className="sm:w-80" />
           <FilterChips<FK> value={k} onChange={setK} opsi={[{ nilai: 'semua', label: 'Semua' }, ...(['sapi', 'ayam', 'kambing', 'kemasan'] as Kategori[]).map((x) => ({ nilai: x, label: LABEL_KATEGORI[x].replace('Daging ', '').replace('Produk ', ''), jumlah: produk.filter((p) => p.kategori === x).length }))]} />
         </FilterBar>
-        {!IS_DEMO && sheet.memuat ? <LoadingState baris={6} /> : !IS_DEMO && sheet.galat ? (
-          <EmptyState judul="Gagal memuat produk" pesan={sheet.galat} aksi={<Button varian="garis" onClick={() => void sheet.muatUlang()}>Coba lagi</Button>} />
-        ) : !IS_DEMO && produk.length === 0 ? (
+        {produk.length === 0 ? (
           <EmptyState judul="Belum ada produk" pesan="Tambahkan produk pertama Anda. Data langsung tersimpan ke Google Sheets." aksi={bolehUbah ? <Button onClick={() => setEdit('baru')}>Tambah produk</Button> : undefined} />
         ) : (
         <DataTable data={daftar} kolom={bolehUbah ? kolom : kolom.filter((c) => c.key !== 'e')} rowKey={(p) => p.id} onRowClick={setDetail} kosong={{ judul: 'Produk tidak ditemukan', pesan: 'Coba kata kunci lain.' }}
@@ -80,8 +75,7 @@ export default function Produk() {
           )} />
         )}
       </Card>
-      <div className="mt-4">{IS_DEMO ? <CatatanDemo>Foto produk berupa ilustrasi. Unggah foto asli akan tersedia setelah penyimpanan file terhubung.</CatatanDemo>
-        : <p className="text-xs text-gray-500">Data produk tersimpan di Google Sheets. Stok dihitung dari riwayat mutasi stok; produk baru stoknya 0 sampai ada penerimaan barang.</p>}</div>
+      <div className="mt-4"><Catatan>Data produk tersimpan di Google Sheets. Stok dihitung dari riwayat mutasi; produk baru stoknya 0 sampai ada penerimaan barang (menu Pembelian → Stok → Terima barang). Gambar produk berupa ilustrasi per kategori.</Catatan></div>
 
       <Modal buka={!!detail} onTutup={() => setDetail(null)} judul="Detail produk" lebar="md"
         footer={<><Button varian="garis" onClick={() => setDetail(null)}>Tutup</Button>{bolehUbah && <Button ikon={<Pencil className="h-4 w-4" />} onClick={() => { setEdit(detail); setDetail(null); }}>Ubah produk</Button>}</>}>
@@ -107,16 +101,12 @@ export default function Produk() {
 
       <FormProduk produk={edit} onTutup={() => setEdit(null)} onSimpan={async (p) => {
         const baru = edit === 'baru';
-        if (IS_DEMO) {
-          data.simpanProduk(p);
-        } else {
-          try { await sheet.simpan(p, baru); } catch (e) {
-            toast({ jenis: 'gagal', judul: 'Produk tidak tersimpan', pesan: (e as Error).message });
-            return;
-          }
+        try { await data.simpanProduk(p, baru); } catch (e) {
+          toast({ jenis: 'gagal', judul: 'Produk tidak tersimpan', pesan: pesanGalat(e) });
+          return;
         }
         setEdit(null);
-        toast({ jenis: 'sukses', judul: `${baru ? 'Produk ditambahkan' : 'Produk diperbarui'}${IS_DEMO ? ' (demo)' : ''}`, pesan: IS_DEMO ? p.nama : `${p.nama} tersimpan di Google Sheets.` });
+        toast({ jenis: 'sukses', judul: baru ? 'Produk ditambahkan' : 'Produk diperbarui', pesan: `${p.nama} tersimpan di Google Sheets.` });
       }} />
     </>
   );

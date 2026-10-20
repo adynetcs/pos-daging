@@ -1,10 +1,8 @@
-# POS Daging — Mockup UI/UX
+# Steak Hook Premium — POS Daging
 
-Mockup aplikasi manajemen usaha daging (eceran + pesanan partai): kasir, pesanan partai dengan DP 70%,
-stok, pembelian, pelanggan, supplier, keuangan, laporan, dan pengaturan.
-
-> **Status: MODE DEMO.** Semua data adalah data contoh di memori browser. Tidak ada yang tersimpan ke
-> database, dan perubahan hilang saat halaman dimuat ulang.
+Aplikasi kasir, pesanan partai (DP 70%), stok, pembelian, pelanggan, supplier, keuangan, laporan,
+dan pengaturan untuk usaha daging. **Semua data tersimpan di Google Sheets** melalui
+Browser → Vercel `/api` → Google Apps Script → Google Sheets. Tidak ada mode demo.
 
 ## Menjalankan (Windows / VS Code)
 
@@ -12,10 +10,12 @@ Butuh Node.js 18 atau lebih baru.
 
 ```bash
 npm install
-npm run dev      # buka http://localhost:5173
 npm run build    # cek tipe (tsc) + build produksi ke folder dist/
-npm run preview  # coba hasil build
 ```
+
+`npm run dev` hanya menjalankan tampilan; fungsi `/api` berjalan di Vercel. Untuk mencoba lokal,
+isi `DEV_API_TARGET=https://alamat-vercel-anda.vercel.app` di `.env.local`, lalu `npm run dev`.
+**Perhatian: data yang diubah saat itu adalah data asli di Google Sheets.**
 
 ## Stack
 
@@ -27,12 +27,11 @@ React 18, TypeScript (strict), Tailwind CSS v3, Vite 5, lucide-react. Grafik dib
 ```
 src/
   types/index.ts          Tipe data (Produk, Pesanan, Pembelian, BarisKas, dst.)
-  data/dummy.ts           SATU-SATUNYA sumber data contoh (ganti dengan API nanti)
   utils/format.ts         Format Rupiah, tanggal Indonesia, berat kg/gram
   utils/calc.ts           Perhitungan berbasis berat (presisi gram), target DP
   utils/finance.ts        Semua angka turunan: omzet, HPP, laba, buku kas, piutang, utang, rekonsiliasi
   services/api.ts         Lapisan service Google Apps Script (belum aktif)
-  context/                DataContext (store lokal), ToastContext, NavContext (router hash)
+  context/                DataContext (data dari Sheets via /api), AuthContext, ToastContext, NavContext
   hooks/useRingkasan.ts   Ringkasan bersama untuk Dashboard
   components/layout/      Sidebar, Header, MobileNav, AppLayout
   components/ui/          Button, Card, StatCard, DataTable, SearchInput, FilterBar/Tabs, StatusBadge,
@@ -73,13 +72,13 @@ Diterapkan di `utils/finance.ts`:
 4. Ganti pemakaian `useState(D.xxxAwal)` di `DataContext.tsx` dengan pemuatan dari `api.*`.
 5. Jangan menaruh kredensial rahasia di frontend; lakukan otorisasi di sisi GAS.
 
-## Yang masih demo
+## Batasan yang perlu diketahui
 
-- Data tidak tersimpan (memori browser saja).
-- Foto produk berupa ilustrasi SVG; unggah foto dan bukti pembayaran hanya mencatat nama berkas.
-- Cetak PDF memakai dialog cetak browser. Ekspor CSV sudah berfungsi saat dijalankan lokal.
-- Pengguna & hak akses, undangan pengguna: tampilan saja, belum ada login.
-- Nomor rekening dan QRIS adalah contoh.
+- Pembatalan transaksi kasir dan retur belum ada di tampilan (struktur sheet sudah mendukung status batal).
+- Pesanan partai yang dibatalkan setelah DP: pengembalian dana dicatat manual.
+- Pelunasan piutang penjualan tempo belum ada tombolnya (piutang tetap terlihat di Keuangan → Piutang).
+- Bukti pembayaran berupa link/no. referensi, bukan unggah file.
+- Gambar produk berupa ilustrasi per kategori.
 
 ## Deploy ke Vercel
 
@@ -107,7 +106,6 @@ Environment Variables di Vercel (Settings → Environment Variables):
 
 | Nama | Isi | Rahasia? |
 |---|---|---|
-| `VITE_DATA_MODE` | `api` | Tidak |
 | `GAS_URL` | URL Web App Apps Script (`.../exec`) | Ya |
 | `GAS_SECRET` | Kunci acak, sama dengan `API_SECRET` di Script Properties | Ya |
 | `SESSION_SECRET` | Kunci acak lain, hanya di Vercel | Ya |
@@ -118,8 +116,15 @@ Keamanan yang diterapkan: PIN di-hash (salt per pengguna + pepper rahasia), akun
 pesan gagal login tidak membedakan email/PIN, identitas pengguna diambil dari cookie bertanda tangan (bukan dari body),
 peran diperiksa ulang di Apps Script untuk setiap aksi, penulisan memakai LockService, setiap perubahan dicatat di Log_Aktivitas.
 
-Yang sudah memakai data asli di mode `api`: login, pengguna & PIN, master produk, status koneksi.
-Modul lain (kasir, pesanan, stok, pembelian, keuangan) masih data contoh sampai Tahap 6.
+Semua modul memakai data asli. Aplikasi memuat satu snapshot (`data.semua`) saat dibuka; setiap aksi tulis
+divalidasi di Apps Script, ditulis ke Sheets, lalu snapshot terbaru dikirim balik dalam jawaban yang sama.
+Tombol ↻ di header memuat ulang perubahan dari perangkat lain.
+
+Aturan yang dijalankan di server: harga jual diambil dari master produk; stok tidak boleh minus;
+penjualan tempo hanya untuk pelanggan terdaftar; anti-duplikat penjualan lewat `id_permintaan`;
+stok pesanan partai berkurang & omzet diakui saat status *selesai*; DP supplier = uang muka, utang timbul
+saat barang diterima; ongkir pembelian masuk HPP batch; setiap pembayaran/modal/pengeluaran = tepat satu baris
+`Kas_Mutasi`; dokumen batal tidak dihapus; peran kasir tidak bisa mengubah modal, pengeluaran, pembelian, stok.
 
 Keterbatasan Google Sheets: penulisan diproses satu per satu (antre lewat LockService) dan tiap permintaan butuh 1–3 detik.
 Cocok untuk 1 toko dengan beberapa kasir. Jika transaksi ramai bersamaan atau data sudah puluhan ribu baris,

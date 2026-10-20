@@ -6,10 +6,10 @@ import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FilterChips } from '@/components/ui/FilterBar';
 import { RentangTanggal } from '@/components/ui/DatePicker';
-import { LoadingState, EmptyState, DemoBadge } from '@/components/ui/States';
+import { LoadingState, EmptyState } from '@/components/ui/States';
 import { AreaChart } from '@/components/charts/Charts';
 import { LabaRugi, SUMBER_KAS } from './Keuangan';
-import { HARI_INI } from '@/data/dummy';
+import { awalBulan, hariIni } from '@/utils/waktu';
 import * as F from '@/utils/finance';
 import { qtySatuan, rupiah, tanggalLabel, tanggalPendek, angka } from '@/utils/format';
 
@@ -36,14 +36,15 @@ export default function Laporan() {
   const toast = useToast();
   const [jenis, setJenis] = useState<Jenis>('harian');
   const [preset, setPreset] = useState<Preset>('bulan');
-  const [rentang, setRentang] = useState({ dari: '2026-10-01', sampai: HARI_INI });
+  const HARI_INI = hariIni();
+  const [rentang, setRentang] = useState({ dari: awalBulan(), sampai: HARI_INI });
   const [muat, setMuat] = useState(false);
 
   const pilihPreset = (p: Preset) => {
     setPreset(p);
     if (p === 'hari') setRentang({ dari: HARI_INI, sampai: HARI_INI });
     if (p === '7') setRentang({ dari: F.rentangHari(HARI_INI, 7)[0], sampai: HARI_INI });
-    if (p === 'bulan') setRentang({ dari: '2026-10-01', sampai: HARI_INI });
+    if (p === 'bulan') setRentang({ dari: awalBulan(), sampai: HARI_INI });
   };
   useEffect(() => { setMuat(true); const t = setTimeout(() => setMuat(false), 350); return () => clearTimeout(t); }, [jenis, rentang]);
 
@@ -117,7 +118,7 @@ export default function Laporan() {
       <PageHeader judul="Laporan" sub={`Periode ${tanggalPendek(per.dari)} – ${tanggalPendek(per.sampai)}`}
         aksi={<>
           <Button varian="garis" ikon={<FileSpreadsheet className="h-4 w-4" />} onClick={eksporCSV} disabled={jenis === 'labarugi'}>Ekspor CSV</Button>
-          <Button varian="garis" ikon={<Printer className="h-4 w-4" />} onClick={() => { toast({ jenis: 'info', judul: 'Cetak PDF (demo)', pesan: 'Gunakan "Simpan sebagai PDF" di dialog cetak. Format PDF khusus belum dibuat.' }); setTimeout(() => window.print(), 300); }}>Cetak PDF <DemoBadge /></Button>
+          <Button varian="garis" ikon={<Printer className="h-4 w-4" />} onClick={() => { toast({ jenis: 'info', judul: 'Cetak laporan', pesan: 'Pilih "Simpan sebagai PDF" di dialog cetak untuk membuat file PDF.' }); setTimeout(() => window.print(), 300); }}>Cetak / PDF</Button>
         </>} />
 
       <Card className="mb-4 flex flex-col gap-3 p-4 lg:flex-row lg:items-center">

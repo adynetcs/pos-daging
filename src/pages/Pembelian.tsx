@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Truck, HandCoins, PackageCheck, Clock, Trash2, Wallet } from 'lucide-react';
-import { useData, useLookup } from '@/context/DataContext';
+import { useData, useLookup, pesanGalat } from '@/context/DataContext';
+import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -11,9 +12,8 @@ import { DataTable, type Kolom } from '@/components/ui/DataTable';
 import { Badge, type NadaBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/FormInput';
-import { CatatanDemo } from '@/components/ui/States';
-import { HARI_INI } from '@/data/dummy';
-import type { Pembelian as TPembelian, StatusPenerimaan, PembayaranSupplier } from '@/types';
+import { Catatan } from '@/components/ui/States';
+import type { Pembelian as TPembelian, StatusPenerimaan } from '@/types';
 import * as F from '@/utils/finance';
 import { nilaiBaris } from '@/utils/calc';
 import { angka, berat, qtySatuan, rupiah, tanggalPendek } from '@/utils/format';
@@ -27,7 +27,7 @@ const BAYAR: Record<ReturnType<typeof F.statusBayarPembelian>, { label: string; 
 
 export default function Pembelian() {
   const d = useData();
-  const { pembelian, simpanPembelian, tambahBayarPembelian } = d;
+  const { pembelian } = d;
   const cari = useLookup();
   const toast = useToast();
   const [q, setQ] = useState('');
@@ -35,6 +35,7 @@ export default function Pembelian() {
   const [detail, setDetail] = useState<string | null>(null);
   const [baru, setBaru] = useState(false);
   const [bayar, setBayar] = useState<string | null>(null);
+  const { pengguna } = useAuth();
 
   const kgDiterima = (b: TPembelian) => b.items.filter((i) => cari.produk(i.produkId)?.satuan === 'kg').reduce((s, i) => s + i.qtyTerima, 0);
   const kgDipesan = (b: TPembelian) => b.items.filter((i) => cari.produk(i.produkId)?.satuan === 'kg').reduce((s, i) => s + i.qtyPesan, 0);
@@ -61,9 +62,9 @@ export default function Pembelian() {
   return (
     <>
       <PageHeader judul="Pembelian" sub="Pembelian daging dari supplier. Masuk ke persediaan, bukan beban."
-        aksi={<Button ikon={<Plus className="h-4 w-4" />} onClick={() => setBaru(true)}>Buat pembelian</Button>} />
+        aksi={pengguna?.peran !== 'kasir' ? <Button ikon={<Plus className="h-4 w-4" />} onClick={() => setBaru(true)}>Buat pembelian</Button> : undefined} />
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Pembelian diterima" nilai={rupiah(totalBulan)} ikon={Truck} warna="abu" keterangan="Oktober 2026" />
+        <StatCard label="Pembelian diterima" nilai={rupiah(totalBulan)} ikon={Truck} warna="abu" keterangan="sejak awal pencatatan" />
         <StatCard label="Utang supplier" nilai={rupiah(F.utangSupplier(d).total)} ikon={HandCoins} warna="merah" onClick={() => setF('utang')} />
         <StatCard label="Uang muka pembelian" nilai={rupiah(F.uangMukaSupplier(d))} ikon={Wallet} warna="biru" keterangan="aset, barang belum datang" />
         <StatCard label="Menunggu barang" nilai={pembelian.filter((b) => b.statusPenerimaan === 'dipesan').length} ikon={Clock} warna="kuning" onClick={() => setF('dipesan')} />
@@ -82,7 +83,7 @@ export default function Pembelian() {
             </div>
           )} />
       </Card>
-      <div className="mt-4"><CatatanDemo>DP ke supplier dicatat sebagai uang muka pembelian. Biaya operasional (sewa, gaji, BBM) dicatat di Keuangan.</CatatanDemo></div>
+      <div className="mt-4"><Catatan>DP ke supplier dicatat sebagai uang muka pembelian. Biaya operasional (sewa, gaji, BBM) dicatat di Keuangan.</Catatan></div>
 
       <Modal buka={!!det} onTutup={() => setDetail(null)} judul={det?.id ?? ''} sub={det ? `${cari.supplier(det.supplierId)?.nama}, ${tanggalPendek(det.tanggal)}` : ''} lebar="lg"
         footer={det && <>{F.utangPembelian(det) > 0 && <Button ikon={<Wallet className="h-4 w-4" />} onClick={() => setBayar(det.id)}>Bayar supplier</Button>}<Button varian="garis" onClick={() => setDetail(null)}>Tutup</Button></>}>
@@ -136,47 +137,71 @@ export default function Pembelian() {
         )}
       </Modal>
 
-      <BayarSupplier id={bayar} onTutup={() => setBayar(null)} onSimpan={(id, b) => { tambahBayarPembelian(id, b); setBayar(null); toast({ jenis: 'sukses', judul: 'Pembayaran supplier dicatat (demo)', pesan: `${rupiah(b.jumlah)} untuk ${id}.` }); }} />
-      <FormPembelian buka={baru} onTutup={() => setBaru(false)} onSimpan={(p) => { simpanPembelian(p); setBaru(false); toast({ jenis: 'sukses', judul: `Pembelian ${p.id} dibuat (demo)`, pesan: 'Terima barang lewat menu Stok saat barang datang.' }); }} />
+      <BayarSupplier id={bayar} onTutup={() => setBayar(null)} onSelesai={(id, jumlah) => { setBayar(null); toast({ jenis: 'sukses', judul: 'Pembayaran supplier tersimpan', pesan: `${rupiah(jumlah)} untuk ${id}.` }); }} />
+      {baru && <FormPembelian onTutup={() => setBaru(false)} onSelesai={(id) => { setBaru(false); setDetail(null); toast({ jenis: 'sukses', judul: `Pembelian ${id} tersimpan`, pesan: 'Terima barang lewat menu Stok saat barang datang.' }); }} />}
     </>
   );
 }
 
-function BayarSupplier({ id, onTutup, onSimpan }: { id: string | null; onTutup: () => void; onSimpan: (id: string, b: PembayaranSupplier) => void }) {
-  const { pembelian } = useData();
+function BayarSupplier({ id, onTutup, onSelesai }: { id: string | null; onTutup: () => void; onSelesai: (id: string, jumlah: number) => void }) {
+  const { pembelian, bayarPembelian } = useData();
   const b = pembelian.find((x) => x.id === id);
   const [n, setN] = useState('');
-  useEffect(() => { if (b) setN(String(F.utangPembelian(b))); }, [b]);
+  const [metode, setMetode] = useState<'tunai' | 'transfer' | 'qris'>('transfer');
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
+  useEffect(() => { if (id) { const x = pembelian.find((y) => y.id === id); setN(x ? String(F.utangPembelian(x)) : ''); setGalat(''); } }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!b) return null;
   const v = parseInt(n.replace(/\D/g, ''), 10) || 0;
   const sisa = F.utangPembelian(b);
   return (
     <Modal buka onTutup={onTutup} judul="Bayar supplier" sub={`${b.id}, sisa utang ${rupiah(sisa)}`} lebar="sm"
-      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button disabled={!v || v > sisa} onClick={() => onSimpan(b.id, { id: `BS-${Date.now().toString().slice(-4)}`, tanggal: HARI_INI, jenis: 'pelunasan', jumlah: v })}>Simpan pembayaran</Button></>}>
-      <Input label="Nominal" awalan="Rp" inputMode="numeric" value={v ? angka(v) : ''} onChange={(e) => setN(e.target.value)} error={v > sisa ? 'Melebihi sisa utang.' : undefined} bantuan="Mengurangi utang supplier dan saldo kas." />
+      footer={<><Button varian="garis" onClick={onTutup} disabled={proses}>Batal</Button><Button disabled={!v || v > sisa || proses} onClick={async () => {
+        setProses(true); setGalat('');
+        try { await bayarPembelian(b.id, v, metode); onSelesai(b.id, v); } catch (e) { setGalat(pesanGalat(e)); } finally { setProses(false); }
+      }}>{proses ? 'Menyimpan…' : 'Simpan pembayaran'}</Button></>}>
+      <div className="space-y-4">
+        <Input label="Nominal" awalan="Rp" inputMode="numeric" value={v ? angka(v) : ''} onChange={(e) => setN(e.target.value)} error={v > sisa ? 'Melebihi sisa utang.' : undefined} bantuan="Mengurangi utang supplier dan saldo kas." />
+        <Select label="Metode" value={metode} onChange={(e) => setMetode(e.target.value as 'tunai' | 'transfer' | 'qris')} opsi={[{ nilai: 'transfer', label: 'Transfer' }, { nilai: 'tunai', label: 'Tunai' }, { nilai: 'qris', label: 'QRIS' }]} />
+        {galat && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{galat}</p>}
+      </div>
     </Modal>
   );
 }
 
-function FormPembelian({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: () => void; onSimpan: (p: TPembelian) => void }) {
-  const { supplier, produk, pembelian } = useData();
-  const [sid, setSid] = useState('s1');
-  const [items, setItems] = useState<{ produkId: string; qty: string; harga: string }[]>([]);
+function FormPembelian({ onTutup, onSelesai }: { onTutup: () => void; onSelesai: (id: string) => void }) {
+  const { supplier, produk, buatPembelian } = useData();
+  const awal = produk.find((p) => p.aktif) ?? produk[0];
+  const [sid, setSid] = useState(supplier[0]?.id ?? '');
+  const [items, setItems] = useState<{ produkId: string; qty: string; harga: string }[]>(awal ? [{ produkId: awal.id, qty: '', harga: String(awal.hpp) }] : []);
   const [biaya, setBiaya] = useState('');
   const [dp, setDp] = useState('');
-  useEffect(() => { if (buka) { setSid('s1'); setItems([{ produkId: 'p3', qty: '30', harga: '105000' }]); setBiaya('150000'); setDp(''); } }, [buka]);
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
   const num = (s: string) => parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
   const total = items.reduce((s, i) => s + nilaiBaris(num(i.qty), num(i.harga)), 0) + num(biaya);
   const vdp = num(dp);
+  const valid = !!sid && items.some((i) => num(i.qty) > 0) && vdp <= total;
+  const simpan = async () => {
+    setProses(true); setGalat('');
+    try {
+      const id = await buatPembelian({
+        id_supplier: sid, biaya_tambahan: num(biaya), ket_biaya: 'Ongkir', dp: vdp, metode: 'transfer',
+        items: items.filter((i) => num(i.qty) > 0).map((i) => ({ id_produk: i.produkId, qty: num(i.qty), harga: num(i.harga) })),
+      });
+      onSelesai(id);
+    } catch (e) { setGalat(pesanGalat(e)); } finally { setProses(false); }
+  };
+  if (!supplier.length || !produk.length) {
+    return (
+      <Modal buka onTutup={onTutup} judul="Buat pembelian" lebar="sm">
+        <p className="text-sm text-gray-600">{!supplier.length ? 'Belum ada supplier. Tambahkan supplier dulu di menu Supplier.' : 'Belum ada produk. Tambahkan produk dulu di menu Produk.'}</p>
+      </Modal>
+    );
+  }
   return (
-    <Modal buka={buka} onTutup={onTutup} judul="Buat pembelian" sub="Pesanan ke supplier. Stok bertambah setelah barang diterima." lebar="lg"
-      footer={<><Button varian="garis" onClick={onTutup}>Batal</Button><Button disabled={!items.length || vdp > total} onClick={() => {
-        const urut = pembelian.filter((b) => b.tanggal === HARI_INI).length + 1;
-        const id = `PB-${HARI_INI.replace(/-/g, '')}-${String(urut).padStart(2, '0')}`;
-        onSimpan({ id, tanggal: HARI_INI, supplierId: sid, statusPenerimaan: 'dipesan', biayaTambahan: num(biaya), keteranganBiaya: 'Ongkir',
-          items: items.map((i) => ({ produkId: i.produkId, qtyPesan: num(i.qty), qtyTerima: 0, harga: num(i.harga) })).filter((i) => i.qtyPesan > 0),
-          pembayaran: vdp ? [{ id: `BS-${Date.now().toString().slice(-4)}`, tanggal: HARI_INI, jenis: 'dp', jumlah: vdp }] : [] });
-      }}>Simpan pembelian</Button></>}>
+    <Modal buka onTutup={onTutup} judul="Buat pembelian" sub="Pesanan ke supplier. Stok bertambah setelah barang diterima." lebar="lg"
+      footer={<><Button varian="garis" onClick={onTutup} disabled={proses}>Batal</Button><Button disabled={!valid || proses} onClick={() => void simpan()}>{proses ? 'Menyimpan…' : 'Simpan pembelian'}</Button></>}>
       <Select label="Supplier" value={sid} onChange={(e) => setSid(e.target.value)} opsi={supplier.map((s) => ({ nilai: s.id, label: `${s.nama} (${s.komoditas})` }))} />
       <div className="mt-4 space-y-2">
         {items.map((it, k) => (
@@ -189,14 +214,15 @@ function FormPembelian({ buka, onTutup, onSimpan }: { buka: boolean; onTutup: ()
             <button className="row-start-1 col-start-2 self-start rounded-lg p-2 text-gray-400 hover:text-red-600 sm:row-auto sm:col-auto sm:self-end" onClick={() => setItems((l) => l.filter((_, j) => j !== k))} aria-label="Hapus"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
-        <Button varian="hantu" ukur="sm" ikon={<Plus className="h-4 w-4" />} onClick={() => setItems((l) => [...l, { produkId: 'p1', qty: '', harga: '120000' }])}>Tambah item</Button>
+        <Button varian="hantu" ukur="sm" ikon={<Plus className="h-4 w-4" />} onClick={() => setItems((l) => [...l, { produkId: awal.id, qty: '', harga: String(awal.hpp) }])}>Tambah item</Button>
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <Input label="Biaya tambahan (ongkir, es)" awalan="Rp" inputMode="numeric" value={num(biaya) ? angka(num(biaya)) : ''} onChange={(e) => setBiaya(e.target.value.replace(/\D/g, ''))} />
         <Input label="DP ke supplier" awalan="Rp" inputMode="numeric" value={vdp ? angka(vdp) : ''} onChange={(e) => setDp(e.target.value.replace(/\D/g, ''))} error={vdp > total ? 'Melebihi total.' : undefined} bantuan="Dicatat sebagai uang muka" />
         <div className="rounded-xl border border-gray-200 p-3"><p className="text-xs text-gray-500">Estimasi total</p><p className="num text-lg font-extrabold">{rupiah(total)}</p><p className="text-xs text-gray-500">Final mengikuti berat diterima</p></div>
       </div>
-      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500"><PackageCheck className="h-4 w-4" />Status awal: belum diterima.</div>
+      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500"><PackageCheck className="h-4 w-4" />Status awal: belum diterima. DP dicatat sebagai uang muka (transfer).</div>
+      {galat && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{galat}</p>}
     </Modal>
   );
 }

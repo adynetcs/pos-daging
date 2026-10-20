@@ -1,16 +1,8 @@
 /**
- * Lapisan service frontend.
- *
- * Mode:
- *   demo  data contoh di memori (src/data/dummy.ts), tidak ada panggilan server
- *   api   semua data lewat /api di Vercel → Google Apps Script → Google Sheets
- *
+ * Lapisan service frontend. Semua data lewat /api di Vercel → Google Apps Script → Google Sheets.
  * Browser hanya bicara ke /api di domain yang sama. URL Apps Script dan semua kunci
  * rahasia hanya ada di server Vercel. Login memakai cookie HttpOnly.
  */
-
-export const DATA_MODE: 'demo' | 'api' = import.meta.env.VITE_DATA_MODE === 'api' ? 'api' : 'demo';
-export const IS_DEMO = DATA_MODE === 'demo';
 
 export type Peran = 'pemilik' | 'admin' | 'kasir';
 export interface PenggunaSesi { id_pengguna: string; nama: string; username: string; email: string; peran: Peran }

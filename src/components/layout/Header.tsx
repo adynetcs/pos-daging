@@ -1,13 +1,12 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { Bell, CalendarDays, Menu, Package, ClipboardList, Users, AlertTriangle, Wallet } from 'lucide-react';
+import { hariIni, sekarang } from '@/utils/waktu';
+import { Bell, CalendarDays, Menu, Package, ClipboardList, Users, AlertTriangle, Wallet, RefreshCw } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
 import { useNav } from '@/context/NavContext';
 import { useData } from '@/context/DataContext';
 import { labelHalaman } from './menu';
 import { SearchInput } from '@/components/ui/SearchInput';
-import { DemoBadge } from '@/components/ui/States';
-import { HARI_INI, SEKARANG } from '@/data/dummy';
 import { jam, tanggalHari, tanggalJam } from '@/utils/format';
-import { IS_DEMO } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 
 function PencarianGlobal() {
@@ -91,6 +90,25 @@ function Notifikasi() {
   );
 }
 
+/** Jam WIB yang berjalan */
+function Jam() {
+  const [, setDetak] = useState(0);
+  useEffect(() => { const t = setInterval(() => setDetak((x) => x + 1), 30_000); return () => clearInterval(t); }, []);
+  return <span><span className="font-semibold text-gray-800">{tanggalHari(hariIni())}</span>, {jam(sekarang())} WIB</span>;
+}
+
+/** Muat ulang data dari Sheets (mis. setelah ada perubahan dari perangkat lain). */
+function TombolSegarkan() {
+  const { muatUlang, memuatUlang } = useData();
+  const toast = useToast();
+  return (
+    <button onClick={() => muatUlang().catch((e: Error) => toast({ jenis: 'gagal', judul: 'Gagal memuat ulang', pesan: e.message }))} disabled={memuatUlang}
+      className="grid h-10 w-10 place-items-center rounded-xl text-gray-600 hover:bg-gray-100 disabled:opacity-60" aria-label="Muat ulang data" title="Muat ulang data dari Google Sheets">
+      <RefreshCw className={`h-[18px] w-[18px] ${memuatUlang ? 'animate-spin' : ''}`} />
+    </button>
+  );
+}
+
 export function Header({ onMenu }: { onMenu: () => void }) {
   const { halaman } = useNav();
   const { pengguna } = useAuth();
@@ -102,10 +120,10 @@ export function Header({ onMenu }: { onMenu: () => void }) {
           <p className="truncate text-base font-bold text-gray-900">{labelHalaman(halaman)}</p>
         </div>
         <div className="hidden flex-1 lg:block"><PencarianGlobal /></div>
-        {IS_DEMO ? <DemoBadge className="hidden sm:inline-flex" /> : <span className="hidden items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />TERHUBUNG</span>}
+        <TombolSegarkan />
         <div className="hidden items-center gap-2 rounded-xl border border-gray-200 px-3 py-1.5 text-xs text-gray-600 xl:flex">
           <CalendarDays className="h-4 w-4 text-gray-400" />
-          <span><span className="font-semibold text-gray-800">{tanggalHari(HARI_INI)}</span>, {jam(SEKARANG)} WIB</span>
+          <Jam />
         </div>
         <Notifikasi />
         <div className="hidden items-center gap-2.5 pl-1 sm:flex">

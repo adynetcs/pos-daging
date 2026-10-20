@@ -11,9 +11,13 @@ import { tanganiGalat } from './_lib/galat.js';
  * Hak akses per aksi diperiksa ulang di Apps Script.
  */
 const AKSI_DIIZINKAN = new Set([
-  'pengguna.list', 'pengguna.simpan', 'pengguna.aturPin',
-  'data.ringkasan',
-  'produk.list', 'produk.simpan',
+  'data.semua', 'data.ringkasan',
+  'pengguna.list', 'pengguna.simpan', 'pengguna.aturPin', 'pengaturan.simpan',
+  'produk.list', 'produk.simpan', 'pelanggan.simpan', 'supplier.simpan',
+  'penjualan.simpan',
+  'pesanan.simpan', 'pesanan.status', 'pesanan.bayar',
+  'pembelian.simpan', 'pembelian.terima', 'pembelian.bayar',
+  'stok.sesuaikan', 'modal.simpan', 'pengeluaran.simpan',
 ]);
 
 export default async function handler(req: Req, res: Res) {

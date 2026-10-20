@@ -9,10 +9,10 @@ import { AreaChart, DonutChart, ProgressBar } from '@/components/charts/Charts';
 import { StatusPesananBadge, Badge } from '@/components/ui/StatusBadge';
 import { ProductThumb, LABEL_KATEGORI, WARNA_KATEGORI } from '@/components/ui/ProductThumb';
 import { Button } from '@/components/ui/Button';
-import { CatatanDemo } from '@/components/ui/States';
+import { Catatan } from '@/components/ui/States';
 import { rupiah, persen, qtySatuan, tanggalLabel, tanggalPendek, jam, namaHari } from '@/utils/format';
 import { dpPesanan, rekonsiliasiKas, totalPesanan, totalTrx } from '@/utils/finance';
-import { HARI_INI } from '@/data/dummy';
+import { hariIni } from '@/utils/waktu';
 import type { Kategori } from '@/types';
 
 export default function Dashboard() {
@@ -22,6 +22,7 @@ export default function Dashboard() {
   const r = useRingkasan();
   const { pengguna } = useAuth();
   const rek = rekonsiliasiKas(d);
+  const HARI_INI = hariIni();
 
   const pesananTerbaru = [...d.pesanan].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 5);
   const trxTerbaru = [...d.transaksi].sort((a, b) => b.tanggal.localeCompare(a.tanggal)).slice(0, 6);
@@ -157,7 +158,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="mt-5"><CatatanDemo>Semua angka di halaman ini adalah data contoh untuk keperluan mockup.</CatatanDemo></div>
+      <div className="mt-5"><Catatan>Data dari Google Sheets. Tekan ikon ↻ di atas untuk memuat perubahan terbaru dari perangkat lain.</Catatan></div>
     </>
   );
 }

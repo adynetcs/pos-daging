@@ -1,18 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Minus, Plus, Trash2, ShoppingCart, PauseCircle, ChevronUp, X, Scale, Archive } from 'lucide-react';
-import { useData } from '@/context/DataContext';
+import { useData, pesanGalat } from '@/context/DataContext';
+import { idPermintaan } from '@/services/api';
 import { useToast } from '@/context/ToastContext';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { FilterChips } from '@/components/ui/FilterBar';
 import { ProductThumb } from '@/components/ui/ProductThumb';
 import { Button } from '@/components/ui/Button';
-import { EmptyState, DemoBadge } from '@/components/ui/States';
+import { EmptyState } from '@/components/ui/States';
 import { Modal } from '@/components/ui/Modal';
 import { TimbangModal } from './kasir/TimbangModal';
 import { BayarModal, type HasilBayar } from './kasir/BayarModal';
 import { StrukModal } from './kasir/Struk';
 import type { ItemTransaksi, Kategori, Produk, TransaksiEceran } from '@/types';
-import { HARI_INI } from '@/data/dummy';
 import { bulatkanBerat, nilaiBaris, totalItems } from '@/utils/calc';
 import { angka, berat, qtySatuan, rupiah } from '@/utils/format';
 
@@ -20,12 +20,15 @@ type KatFilter = 'semua' | Kategori;
 interface Tertahan { id: string; label: string; items: ItemTransaksi[]; pelangganId: string; diskon: number }
 
 export default function Kasir() {
-  const { produk, pelanggan, transaksi, simpanTransaksi, pengaturan } = useData();
+  const { produk, pelanggan, simpanTransaksi, pengaturan } = useData();
   const toast = useToast();
   const [q, setQ] = useState('');
   const [kat, setKat] = useState<KatFilter>('semua');
   const [keranjang, setKeranjang] = useState<ItemTransaksi[]>([]);
-  const [pelangganId, setPelangganId] = useState('c0');
+  const [pelangganId, setPelangganId] = useState('PLG-0000');
+  const [memproses, setMemproses] = useState(false);
+  /** Kunci anti-duplikat: tetap sama selama satu kali proses pembayaran, walau tombol tertekan dua kali. */
+  const kunciBayar = useRef<string>('');
   const [diskonMode, setDiskonMode] = useState<'rp' | 'persen'>('rp');
   const [diskonInput, setDiskonInput] = useState('');
   const [timbang, setTimbang] = useState<{ p: Produk; awal?: number } | null>(null);
@@ -65,7 +68,7 @@ export default function Kasir() {
     setQty(p, diKeranjang(p.id) + 1);
   };
 
-  const reset = () => { setKeranjang([]); setDiskonInput(''); setPelangganId('c0'); };
+  const reset = () => { setKeranjang([]); setDiskonInput(''); setPelangganId('PLG-0000'); };
 
   const tahan = () => {
     if (!keranjang.length) return;
@@ -76,20 +79,31 @@ export default function Kasir() {
     toast({ jenis: 'info', judul: 'Keranjang disimpan sementara', pesan: 'Lanjutkan nanti dari tombol "Tertahan". Belum tercatat sebagai penjualan.' });
   };
 
-  const selesaiBayar = (h: HasilBayar) => {
-    const nomor = transaksi.filter((t) => t.tanggal.startsWith(HARI_INI)).length + 1;
-    const now = new Date();
-    const trx: TransaksiEceran = {
-      id: `TRX-${HARI_INI.replace(/-/g, '')}-${String(nomor).padStart(3, '0')}`,
-      tanggal: `${HARI_INI}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`,
-      pelangganId, items: keranjang, diskon, pembayaran: h.pembayaran,
-    };
-    simpanTransaksi(trx);
-    setBayar(false);
-    setSheet(false);
-    setStruk({ trx, h });
-    reset();
-    toast({ jenis: 'sukses', judul: 'Pembayaran tercatat (demo)', pesan: `${trx.id} disimpan di memori browser saja, belum ke database.` });
+  const bukaBayar = () => { kunciBayar.current = idPermintaan(); setBayar(true); };
+
+  const selesaiBayar = async (h: HasilBayar) => {
+    if (memproses) return;
+    setMemproses(true);
+    try {
+      const hasil = await simpanTransaksi({
+        id_permintaan: kunciBayar.current,
+        id_pelanggan: pelangganId,
+        items: keranjang.map((i) => ({ id_produk: i.produkId, qty: i.qty })),
+        diskon,
+        // Tempo tidak dikirim sebagai pembayaran; kekurangannya otomatis menjadi piutang di server
+        pembayaran: h.pembayaran.filter((b) => b.metode !== 'tempo').map((b) => ({ metode: b.metode as 'tunai' | 'transfer' | 'qris', jumlah: b.jumlah })),
+      });
+      const trx: TransaksiEceran = { id: hasil.id, tanggal: hasil.waktu.replace(' ', 'T'), pelangganId, items: keranjang, diskon, pembayaran: h.pembayaran };
+      setBayar(false);
+      setSheet(false);
+      setStruk({ trx, h });
+      reset();
+      toast({ jenis: 'sukses', judul: 'Pembayaran tersimpan', pesan: `${hasil.id} tercatat di Google Sheets.` });
+    } catch (e) {
+      toast({ jenis: 'gagal', judul: 'Transaksi belum tersimpan', pesan: pesanGalat(e) });
+    } finally {
+      setMemproses(false);
+    }
   };
 
   const panelKeranjang = (
@@ -163,7 +177,7 @@ export default function Kasir() {
       </div>
       <div className="grid grid-cols-[auto_1fr] gap-2 p-4">
         <Button varian="garis" ukur="lg" disabled={!jumlahItem} onClick={tahan} ikon={<PauseCircle className="h-4 w-4" />}>Simpan</Button>
-        <Button ukur="lg" disabled={!jumlahItem} onClick={() => setBayar(true)}>Bayar {jumlahItem ? rupiah(total) : ''}</Button>
+        <Button ukur="lg" disabled={!jumlahItem} onClick={bukaBayar}>Bayar {jumlahItem ? rupiah(total) : ''}</Button>
       </div>
     </div>
   );
@@ -176,7 +190,6 @@ export default function Kasir() {
             <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">Kasir</h1>
             <p className="text-sm text-gray-500">Ketuk produk timbang untuk memasukkan berat.</p>
           </div>
-          <DemoBadge />
         </div>
         {/* Pencarian + kategori menempel tepat di bawah header saat discroll (HP). Margin negatif
             di sini sengaja menyamai padding <main> agar latar bilah ini selebar layar. */}
@@ -254,7 +267,7 @@ export default function Kasir() {
             setTimbang(null);
           }} />
       )}
-      <BayarModal buka={bayar} total={total} bolehTempo={pelangganId !== 'c0'} metodeAktif={pengaturan.metodeAktif} onTutup={() => setBayar(false)} onBayar={selesaiBayar} />
+      <BayarModal buka={bayar} total={total} bolehTempo={pelangganId !== 'PLG-0000'} metodeAktif={pengaturan.metodeAktif} rekening={pengaturan.rekening} memproses={memproses} onTutup={() => { if (!memproses) setBayar(false); }} onBayar={(h) => { void selesaiBayar(h); }} />
       <StrukModal trx={struk?.trx ?? null} diterima={struk?.h.diterima} kembalian={struk?.h.kembalian} onTutup={() => setStruk(null)} />
       <Modal buka={daftarTahan} onTutup={() => setDaftarTahan(false)} judul="Keranjang tertahan" sub="Disimpan sementara di perangkat ini" lebar="sm">
         {tertahan.length === 0 ? <EmptyState ikon={Archive} judul="Tidak ada keranjang tertahan" /> : (

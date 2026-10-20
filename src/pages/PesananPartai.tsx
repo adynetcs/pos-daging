@@ -10,7 +10,7 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { DataTable, type Kolom } from '@/components/ui/DataTable';
 import { StatusPesananBadge, STATUS_PESANAN } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
-import { EmptyState, CatatanDemo } from '@/components/ui/States';
+import { EmptyState, Catatan } from '@/components/ui/States';
 import { DetailPesanan } from './pesanan/DetailPesanan';
 import { FormPesanan } from './pesanan/FormPesanan';
 import type { PesananPartai as TPesanan, StatusPesanan } from '@/types';
@@ -21,12 +21,12 @@ type Filter = 'semua' | StatusPesanan;
 
 export default function PesananPartai() {
   const data = useData();
-  const { pesanan, simpanPesanan, pengaturan } = data;
+  const { pesanan, pengaturan } = data;
   const cari = useLookup();
   const toast = useToast();
   const [filter, setFilter] = useState<Filter>('semua');
   const [q, setQ] = useState('');
-  const [dipilih, setDipilih] = useState<string | null>('PP-20261012-01');
+  const [dipilih, setDipilih] = useState<string | null>(null);
   const [detailMobile, setDetailMobile] = useState(false);
   const [form, setForm] = useState(false);
 
@@ -39,7 +39,7 @@ export default function PesananPartai() {
   }, [pesanan, filter, q, cari]);
 
   const aktif = pesanan.filter((p) => STATUS_AKTIF.includes(p.status));
-  const detail = pesanan.find((p) => p.id === dipilih);
+  const detail = pesanan.find((p) => p.id === dipilih) ?? (dipilih === null ? [...pesanan].sort((a, b) => b.id.localeCompare(a.id)).find((p) => !['selesai', 'batal'].includes(p.status)) : undefined);
   const hitung = (s: StatusPesanan) => pesanan.filter((p) => p.status === s).length;
 
   const kolom: Kolom<TPesanan>[] = [
@@ -100,14 +100,14 @@ export default function PesananPartai() {
           {detail ? <DetailPesanan p={detail} /> : <EmptyState ikon={ClipboardList} judul="Pilih pesanan" pesan="Klik baris di tabel untuk melihat detail." />}
         </Card>
       </div>
-      <div className="mt-4"><CatatanDemo>Perubahan status dan pembayaran hanya tersimpan di memori browser.</CatatanDemo></div>
+      <div className="mt-4"><Catatan>Stok berkurang dan omzet diakui saat pesanan ditandai selesai. DP adalah uang muka, bukan pendapatan tambahan.</Catatan></div>
 
       <Modal buka={detailMobile && !!detail} onTutup={() => setDetailMobile(false)} judul="Detail pesanan" lebar="md">
         {detail && <DetailPesanan p={detail} />}
       </Modal>
-      <FormPesanan buka={form} onTutup={() => setForm(false)} onSimpan={(p) => {
-        simpanPesanan(p); setForm(false); setDipilih(p.id); setFilter('semua');
-        toast({ jenis: 'sukses', judul: `Pesanan ${p.id} dibuat (demo)`, pesan: p.status === 'draft' ? 'Disimpan sebagai draft.' : `Tagih DP ${rupiah(dpPesanan(p, dpP))} ke pelanggan.` });
+      <FormPesanan buka={form} onTutup={() => setForm(false)} onSelesai={(id, status) => {
+        setForm(false); setDipilih(id); setFilter('semua');
+        toast({ jenis: 'sukses', judul: `Pesanan ${id} tersimpan`, pesan: status === 'draft' ? 'Disimpan sebagai draft.' : `Tagih DP ${pengaturan.dpPersen}% ke pelanggan.` });
       }} />
     </>
   );

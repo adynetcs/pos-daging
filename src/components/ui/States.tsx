@@ -27,15 +27,7 @@ export function LoadingState({ baris = 5 }: { baris?: number }) {
   );
 }
 
-export function DemoBadge({ className = '' }: { className?: string }) {
-  return (
-    <span title="Belum terhubung ke backend. Data hanya contoh dan tidak disimpan."
-      className={`inline-flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 ${className}`}>
-      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />DEMO
-    </span>
-  );
-}
-
-export function CatatanDemo({ children }: { children: ReactNode }) {
-  return <p className="text-xs text-gray-500"><DemoBadge className="mr-1.5 align-middle" />{children}</p>;
+/** Catatan kecil di bawah halaman (informasi, bukan peringatan). */
+export function Catatan({ children }: { children: ReactNode }) {
+  return <p className="text-xs leading-relaxed text-gray-500">{children}</p>;
 }

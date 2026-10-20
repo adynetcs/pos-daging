@@ -3,7 +3,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useNav } from '@/context/NavContext';
 import { menuUntuk } from './menu';
 import { Logo } from './Logo';
-import { IS_DEMO } from '@/services/api';
 
 const GRUP = { operasional: 'Operasional', data: 'Data & persediaan', bisnis: 'Bisnis' } as const;
 
@@ -37,17 +36,10 @@ function IsiSidebar({ onPilih }: { onPilih?: () => void }) {
           </div>
         ))}
       </nav>
-      <div className="mx-3 mb-3 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-[12px] text-amber-100/90">
-        {IS_DEMO ? (
-          <><p className="font-bold text-amber-300">Mode demo</p><p className="mt-0.5 text-amber-100/70">Data contoh, tidak tersimpan ke database.</p></>
-        ) : (
-          <><p className="font-bold text-emerald-300">Terhubung ke Google Sheets</p><p className="mt-0.5 text-amber-100/70">Login, pengguna, dan produk sudah data asli. Modul lain masih data contoh.</p></>
-        )}
-      </div>
       <div className="flex items-center gap-3 border-t border-white/10 px-5 py-4">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-bold">{pengguna!.nama.charAt(0).toUpperCase()}</span>
         <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{pengguna!.nama}</span><span className="text-xs text-white/50">{LABEL_PERAN[pengguna!.peran]}</span></span>
-        {!IS_DEMO && (
+        {(
           <button onClick={() => { void logout(); onPilih?.(); }} className="rounded-lg p-2 text-white/50 hover:bg-white/10 hover:text-white" aria-label="Keluar" title="Keluar">
             <LogOut className="h-4 w-4" />
           </button>
